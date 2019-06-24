@@ -50,6 +50,8 @@ max_epochs = 60
 max_epoch_without_improvement = 5
 mnist_dim = x_train.shape[1]
 missingness_size = 'block' # pixel
+missingness_block_size = 7
+num_missing_blocks = 8
 
 def encoder(inputs, b=None, model_type=None):
     net = inputs
@@ -83,34 +85,47 @@ def encoder(inputs, b=None, model_type=None):
                 b_net_ = b_net
                 u_ = u
 
-                b_net = tf.nn.conv2d(b_net_, tf.abs(w),
-                                     strides=(1, strides, strides, 1), padding='SAME')
+                b_net = tf.nn.conv2d(tf.abs(b_net_ * u_), tf.abs(w),
+                                     strides=(1, strides, strides, 1), padding='SAME')/(
+                        tf.nn.conv2d(tf.abs(tf.ones_like(b_net_) * u_), tf.abs(w),
+                                     strides=(1, strides, strides, 1), padding='SAME') + 1e-6)
+                b_net = tf.stop_gradient(b_net)
+
+                # b_net = tf.nn.conv2d(b_net_, tf.abs(w),
+                #                      strides=(1, strides, strides, 1), padding='SAME')
 
                 bias = tf.get_variable('layer_{0}_bias'.format(i),
                                        shape=encoder_shapes_pre_pool[i+1][2],
                                        initializer=tf.initializers.zeros())
 
-                bias1 = tf.get_variable('layer_{0}_bias_b_net'.format(i),
-                                       shape=encoder_shapes_pre_pool[i+1][2],
-                                       initializer=tf.initializers.zeros())
+                # bias1 = tf.get_variable('layer_{0}_bias_b_net'.format(i),
+                #                        shape=encoder_shapes_pre_pool[i+1][2],
+                #                        initializer=tf.initializers.zeros())
 
-                gamma = tf.get_variable('layer_{0}_gamma_b_net'.format(i),
-                                       shape=encoder_shapes_pre_pool[i+1][2],
-                                       initializer=tf.initializers.ones())
+                # gamma = tf.get_variable('layer_{0}_gamma_b_net'.format(i),
+                #                        shape=encoder_shapes_pre_pool[i+1][2],
+                #                        initializer=tf.initializers.ones())
 
                 u = tf.get_variable('layer_{0}_mean'.format(i),
                                     shape=encoder_shapes_pre_pool[i+1],
                                     initializer=tf.initializers.zeros())
 
-                b_net = tf.stop_gradient(b_net)
-                b_net = tf.nn.bias_add(b_net, bias1)
-                b_net = tf.nn.sigmoid(gamma * b_net)
+                # b_net = tf.stop_gradient(b_net)
+                # b_net = tf.nn.bias_add(b_net, bias1)
+                # b_net = tf.nn.sigmoid(gamma * b_net)
                 
-                net = (tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME') +
+                # net = (tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME') +
+                #        tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
+                # net = (tf.nn.conv2d(b_net_ * net, w, strides=(1, strides, strides, 1), padding='SAME') +
+                #        tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
+                if i == 0:
+                    net = (tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME') +
                        tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
+                else:
+                    net = tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME')
 
                 net = tf.nn.bias_add(net, bias)
-                net = b_net * net
+                # net = b_net * net
                 net = tf.nn.relu(net)
 
                 layers.append((net, b_net, u))
@@ -168,12 +183,22 @@ def encoder(inputs, b=None, model_type=None):
                                     shape=layer,
                                     initializer=tf.initializers.zeros())
 
-                b_net_transformed = tf.matmul(b_net, tf.abs(w))
-                b_net_transformed = tf.stop_gradient(b_net_transformed)
-                b_net = tf.nn.sigmoid(gamma * (b_net_transformed + bias1))
+                # b_net_transformed = tf.matmul(b_net, tf.abs(w))
+                # b_net_transformed = tf.stop_gradient(b_net_transformed)
+                # b_net = tf.nn.sigmoid(gamma * (b_net_transformed + bias1))
 
-                net = tf.nn.relu(b_net *
-                                 (tf.matmul(net, w) +  tf.matmul((1.0 - b_net_) * u_, w) + bias))
+                # net = tf.nn.relu(b_net *
+                #                  (tf.matmul(net, w) +  tf.matmul((1.0 - b_net_) * u_, w) + bias))
+
+
+                b_net_transformed = tf.matmul(tf.abs(b_net_ * u_), tf.abs(w))/(
+                    tf.matmul(tf.abs(tf.ones_like(b_net_) * u_), tf.abs(w)) + 1e-6)
+                b_net = tf.stop_gradient(b_net_transformed)
+
+                if i == 0:
+                    net = tf.nn.relu(tf.matmul(net, w) +  tf.matmul((1.0 - b_net_) * u_, w) + bias)
+                else:
+                    net = tf.nn.relu(tf.matmul(net, w) + bias)
 
                 layers.append((net, b_net, u))
             else:
@@ -181,6 +206,10 @@ def encoder(inputs, b=None, model_type=None):
                 layers.append(net)
             
     net = tf.contrib.layers.flatten(net)
+    if b is not None:
+        b_net = tf.contrib.layers.flatten(b_net)
+        net = tf.concat([net, b_net], axis=1)
+
     mu = tf.contrib.layers.fully_connected(net, z_dim, activation_fn=None)
     sigma = tf.contrib.layers.fully_connected(net, z_dim, activation_fn=tf.nn.softplus)
     
@@ -220,73 +249,16 @@ def decoder(z, recon_b=False):
     
     return p, None
 
-# def decoder(z, recon_b=False):
-#     net = z
-#     for i, layer in enumerate(decoder_layers):
-#         if isinstance(layer, tuple):
-#             input_size, weights, bias, strides, output_shape, activation = layer
-#             if input_size is not None:
-#                 net = tf.reshape(net, input_size)
-#             output_shape = [tf.shape(net)[0]] + output_shape[1:]
-#             if output_shape[-1] == None:
-#                 output_shape[-1] = 2 if recon_b else 1
-#                 weights[-2] = 2 if recon_b else 1
-            
-#             w = tf.get_variable('decoder_weights_{0}'.format(i), weights,
-#                                 initializer=tf.contrib.layers.xavier_initializer())
-#             b = tf.get_variable('decoder_bias_{0}'.format(i), bias,
-#                                 initializer=tf.constant_initializer(0.0))
-            
-#             net = tf.nn.conv2d_transpose(net, w, output_shape=output_shape, strides=strides)
-#             net = net + b
-#             if activation is not None:
-#                 net = activation(net)
-#         else:
-#             net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
-    
-#     p_net = tf.contrib.layers.flatten(net[:, :, :, 0])
-#     p = tf.contrib.layers.fully_connected(p_net, mnist_dim * mnist_dim, activation_fn=None)
-    
-#     if recon_b:
-#         net = z
-#         for i, layer in enumerate(decoder_layers):
-#             if isinstance(layer, tuple):
-#                 input_size, weights, bias, strides, output_shape, activation = layer
-#                 if input_size is not None:
-#                     net = tf.reshape(net, input_size)
-#                 output_shape = [tf.shape(net)[0]] + output_shape[1:]
-#                 if output_shape[-1] == None:
-#                     output_shape[-1] = 2 if recon_b else 1
-#                     weights[-2] = 2 if recon_b else 1
-                
-#                 w = tf.get_variable('decoder_recon_b_weights_{0}'.format(i), weights,
-#                                     initializer=tf.contrib.layers.xavier_initializer())
-#                 b = tf.get_variable('decoder_recon_b_bias_{0}'.format(i), bias,
-#                                     initializer=tf.constant_initializer(0.0))
-                
-#                 net = tf.nn.conv2d_transpose(net, w, output_shape=output_shape, strides=strides)
-#                 net = net + b
-#                 if activation is not None:
-#                     net = activation(net)
-#             else:
-#                 net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
-
-#             b = tf.contrib.layers.fully_connected(net, mnist_dim * mnist_dim, activation_fn=None)
-#             return p, b
-    
-#     return p, None
-
 def model(features, labels, mode, params):
     x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
                    [-1, mnist_dim, mnist_dim])
-    b = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
+    x_input = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
+                   [-1, mnist_dim, mnist_dim])
+    b = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][2]),
                    [-1, mnist_dim, mnist_dim])
     recon_b = 'recon_b' in params['model_type']
     
-    # mu, sigma = encoder(tf.stack([x, b], axis=3) if '_ind' in params['model_type'] else tf.expand_dims(x, -1),
-    #                     b=tf.expand_dims(b, 3) if 'self_dropout' in params['model_type'] else None)
-    
-    mu, sigma, layers = encoder(tf.stack([x * b, b], axis=3) if '_ind' in params['model_type'] and 'self_dropout' not in params['model_type'] else tf.expand_dims(x * b, -1),
+    mu, sigma, layers = encoder(tf.stack([x_input, b], axis=3) if '_ind' in params['model_type'] and 'self_dropout' not in params['model_type'] else tf.expand_dims(x_input, -1),
                                 b=tf.expand_dims(b, 3) if 'self_dropout' in params['model_type'] else None,
                                 model_type=params['model_type'])
 
@@ -331,14 +303,20 @@ def model(features, labels, mode, params):
         loss = -elbo
         for i, (net, b_net, u) in enumerate(layers):
             fixed_net = tf.stop_gradient(net)
-            if i == 0:
-                fixed_b_net = tf.stop_gradient(b_net)
-                loss += tf.reduce_mean(tf.reduce_sum((fixed_b_net * (fixed_net - u))**2, axis=1))
-            elif isinstance(encoder_layers[i-1], tuple):
+            # if i == 0:
+            #     fixed_b_net = tf.stop_gradient(b_net)
+            #     loss += tf.reduce_mean(tf.reduce_sum((fixed_b_net * (fixed_net - u))**2, axis=1))
+            # elif isinstance(encoder_layers[i-1], tuple):
+            #     loss += tf.reduce_mean(tf.reduce_sum(
+            #         tf.reduce_sum((fixed_net - u)**2, axis=1), axis=2))
+            # else:
+            #     loss += tf.reduce_mean(tf.reduce_sum((fixed_net - u)**2, axis=1))
+            fixed_b_net = tf.stop_gradient(b_net)
+            if isinstance(encoder_layers[i-1], tuple):
                 loss += tf.reduce_mean(tf.reduce_sum(
-                    tf.reduce_sum((fixed_net - u)**2, axis=1), axis=2))
+                    tf.reduce_sum(fixed_b_net * (fixed_net - u)**2, axis=1), axis=2))
             else:
-                loss += tf.reduce_mean(tf.reduce_sum((fixed_net - u)**2, axis=1))
+                loss += tf.reduce_mean(tf.reduce_sum(fixed_b_net * (fixed_net - u)**2, axis=1))
     else:
         loss = -elbo
 
@@ -365,8 +343,8 @@ def model(features, labels, mode, params):
 # for missingness_type, p in [('dependent', 0.5), ('independent', 0.5)]:
 for missingness_type, p in [('independent', 0.5)]:
     # for model_type in ['VAE_ind_dec_cond_b', 'VAE_ind_recon_b', 'VAE', 'VAE_ind']:
-    # for model_type in ['VAE', 'VAE_ind']:
-    for model_type in ['VAE_ind_self_dropout_recon_b', 'VAE_ind_self_dropout', 'VAE_ind', 'VAE', 'VAE_ind_recon_b']:
+    for model_type in ['VAE', 'VAE_mean_imp', 'VAE_ind', 'VAE_ind_mean_imp']:
+    # for model_type in ['VAE_ind_self_dropout_recon_b', 'VAE_ind_self_dropout', 'VAE_ind', 'VAE', 'VAE_ind_recon_b']:
         if missingness_type == 'independent' and 'recon_b' in model_type:
             continue
         if missingness_type == 'independent' and missingness_size == 'block':
@@ -374,17 +352,39 @@ for missingness_type, p in [('independent', 0.5)]:
             b_valid = np.ones_like(x_valid)
             b_test = np.ones_like(x_test)
             for b in range(x_train.shape[0]):
-                x = np.random.choice(mnist_dim)
-                y = np.random.choice(mnist_dim)
-                b_train[b, max(x - 7, 0):min(x + 7, mnist_dim), max(y - 7, 0):min(y + 7, mnist_dim)] = 0.0
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim)
+                    y = np.random.choice(mnist_dim)
+                    b_train[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
             for b in range(x_valid.shape[0]):
-                x = np.random.choice(mnist_dim)
-                y = np.random.choice(mnist_dim)
-                b_valid[b, max(x - 7, 0):min(x + 7, mnist_dim), max(y - 7, 0):min(y + 7, mnist_dim)] = 0.0
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim)
+                    y = np.random.choice(mnist_dim)
+                    b_valid[b, max(x - 7, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
             for b in range(x_test.shape[0]):
-                x = np.random.choice(mnist_dim)
-                y = np.random.choice(mnist_dim)
-                b_test[b, max(x - 7, 0):min(x + 7, mnist_dim), max(y - 7, 0):min(y + 7, mnist_dim)] = 0.0
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim)
+                    y = np.random.choice(mnist_dim)
+                    b_test[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+        elif missingness_type == 'dependent' and missingness_size == 'block':
+            b_train = np.ones_like(x_train)
+            b_valid = np.ones_like(x_valid)
+            b_test = np.ones_like(x_test)
+            for b in range(x_train.shape[0]):
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim) + int(2 * y_train[b] - 9)
+                    y = np.random.choice(mnist_dim) + int(2 * y_train[b] - 9)
+                    b_train[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+            for b in range(x_valid.shape[0]):
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim) + int(2 * y_valid[b] - 9)
+                    y = np.random.choice(mnist_dim) + int(2 * y_valid[b] - 9)
+                    b_valid[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+            for b in range(x_test.shape[0]):
+                for _ in range(num_missing_blocks):
+                    x = np.random.choice(mnist_dim) + int(2 * y_test[b] - 9)
+                    y = np.random.choice(mnist_dim) + int(2 * y_test[b] - 9)
+                    b_test[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
         elif missingness_type == 'independent':
             b_train = np.random.uniform(size=x_train.shape) > p
             # x_train_ = b_train * x_train
@@ -403,7 +403,18 @@ for missingness_type, p in [('independent', 0.5)]:
                 np.expand_dims(p * (1 + y_test)/10.0, axis=1), axis=2)
             # x_test_ = b_test * x_test
 
+        if '_mean_imp' in model_type:
+            x_mu = np.true_divide(np.sum(x_train, axis=0), np.sum(b_train, axis=0))
+            x_train_input = x_train + (1.0 - b_train) * x_mu
+            x_valid_input = x_valid + (1.0 - b_valid) * x_mu
+            x_test_input = x_test + (1.0 - b_test) * x_mu
+        else:
+            x_train_input = x_train * b_train
+            x_valid_input = x_valid * b_valid
+            x_test_input = x_test * b_test
+
         feature_columns = [tf.feature_column.numeric_column(key='x', shape=[mnist_dim, mnist_dim]),
+                           tf.feature_column.numeric_column(key='x_input', shape=[mnist_dim, mnist_dim]),
                            tf.feature_column.numeric_column(key='b', shape=[mnist_dim, mnist_dim])]
 
         vae = tf.estimator.Estimator(
@@ -417,15 +428,15 @@ for missingness_type, p in [('independent', 0.5)]:
                 log_step_count_steps=1000))
         
         train_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_train, 'b': b_train},
+            {'x': x_train, 'x_input': x_train_input, 'b': b_train},
             shuffle=True)
 
         valid_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_valid, 'b': b_valid},
+            {'x': x_valid, 'x_input': x_valid_input, 'b': b_valid},
             shuffle=False)
         
         test_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_test, 'b': b_test},
+            {'x': x_test, 'x_input': x_test_input, 'b': b_test},
             shuffle=False)
 
         best_valid_elbo = None
