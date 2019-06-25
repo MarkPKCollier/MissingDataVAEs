@@ -22,7 +22,6 @@ x_train[x_train < 0.5] = 0.0
 x_test[x_test >= 0.5] = 1.0
 x_test[x_test < 0.5] = 0.0
 
-
 x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train, train_size=50000, test_size=10000)
 
 z_dim = 128
