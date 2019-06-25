@@ -9,11 +9,19 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+run_num = 1
+
 mnist = tf.keras.datasets.mnist
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+
 x_train, x_test = x_train / 255.0, x_test / 255.0
+x_train[x_train >= 0.5] = 1.0
+x_train[x_train < 0.5] = 0.0
+x_test[x_test >= 0.5] = 1.0
+x_test[x_test < 0.5] = 0.0
+
 
 x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train, train_size=50000, test_size=10000)
 
@@ -302,9 +310,9 @@ for missingness_type, p in [('independent', 0.5)]:
 
         if '_mean_imp' in model_type:
             x_mu = np.true_divide(np.sum(x_train, axis=0), np.sum(b_train, axis=0))
-            x_train_input = x_train + (1.0 - b_train) * x_mu
-            x_valid_input = x_valid + (1.0 - b_valid) * x_mu
-            x_test_input = x_test + (1.0 - b_test) * x_mu
+            x_train_input = b_train * x_train + (1.0 - b_train) * x_mu
+            x_valid_input = b_valid * x_valid + (1.0 - b_valid) * x_mu
+            x_test_input = b_test * x_test + (1.0 - b_test) * x_mu
         else:
             x_train_input = x_train * b_train
             x_valid_input = x_valid * b_valid
@@ -316,7 +324,7 @@ for missingness_type, p in [('independent', 0.5)]:
 
         vae = tf.estimator.Estimator(
             model_fn=model,
-            model_dir='mnist_{0}_{1}'.format(model_type, missingness_type),
+            model_dir='mnist_{0}_{1}_{2}'.format(model_type, missingness_type, run_num),
             params={'feature_columns': feature_columns, 'model_type': model_type},
             config=tf.estimator.RunConfig(
                 save_summary_steps=1000,

@@ -9,39 +9,28 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
+run_num = 1
+
 mnist = tf.keras.datasets.mnist
 
 (x_train, y_train), (x_test, y_test) = mnist.load_data()
 y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
-x_train, x_test = x_train / 255.0, x_test / 255.0
 
+x_train, x_test = x_train / 255.0, x_test / 255.0
+x_train[x_train >= 0.5] = 1.0
+x_train[x_train < 0.5] = 0.0
+x_test[x_test >= 0.5] = 1.0
+x_test[x_test < 0.5] = 0.0
 
 x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
                                                       train_size=50000,
                                                       test_size=10000)
 
-# z_dim = 128
-# input_units = x_train.shape[1] * x_train.shape[2]
-# encoder_layers = [(32, 5, 1), (64, 5, 1), 256]
-# decoder_layers = [256, 7*7*64,
-#                   ([-1, 7, 7, 64], [5, 5, 32, 64], 32, [1, 2, 2, 1], [-1, 14, 14, 32], tf.nn.relu),
-#                   (None, [5, 5, 2, 32], 2, [1, 2, 2, 1], [-1, 28, 28, None], None)]
-# max_epochs = 75
-# max_epoch_without_improvement = 10
-# mnist_dim = x_train.shape[1]
-
 z_dim = 256
 input_units = x_train.shape[1] * x_train.shape[2]
 encoder_layers = [(10, 5, 1), (20, 5, 1), 512]
-# encoder_shapes = [28*28*1, 14*14*10, 7*7*20]
 encoder_shapes = [(28, 28, 1), (14, 14, 10), (7, 7, 20)]
 encoder_shapes_pre_pool = [(28, 28, 1), (28, 28, 10), (14, 14, 20)]
-# decoder_layers = [256, 7*7*16,
-#                   ([-1, 7, 7, 16], [5, 5, 8, 16], 8, [1, 2, 2, 1], [-1, 14, 14, 8], tf.nn.relu),
-#                   (None, [5, 5, None, 8], 2, [1, 2, 2, 1], [-1, 28, 28, None], None)]
-# decoder_layers = [256, 7*7*20,
-#                   ([-1, 7, 7, 20], [5, 5, 10, 20], 10, [1, 2, 2, 1], [-1, 14, 14, 10], tf.nn.relu),
-#                   (None, [5, 5, None, 10], 2, [1, 2, 2, 1], [-1, 28, 28, None], None)]
 p_x_layers = [7*7*10,
               ([-1, 7, 7, 10], 20, 5, 2, tf.nn.relu),
               (None, 10, 5, 2, tf.nn.relu),
@@ -405,9 +394,9 @@ for missingness_type, p in [('independent', 0.5)]:
 
         if '_mean_imp' in model_type:
             x_mu = np.true_divide(np.sum(x_train, axis=0), np.sum(b_train, axis=0))
-            x_train_input = x_train + (1.0 - b_train) * x_mu
-            x_valid_input = x_valid + (1.0 - b_valid) * x_mu
-            x_test_input = x_test + (1.0 - b_test) * x_mu
+            x_train_input = b_train * x_train + (1.0 - b_train) * x_mu
+            x_valid_input = b_valid * x_valid + (1.0 - b_valid) * x_mu
+            x_test_input = b_test * x_test + (1.0 - b_test) * x_mu
         else:
             x_train_input = x_train * b_train
             x_valid_input = x_valid * b_valid
@@ -419,7 +408,7 @@ for missingness_type, p in [('independent', 0.5)]:
 
         vae = tf.estimator.Estimator(
             model_fn=model,
-            model_dir='mnist_conv_{0}_{1}'.format(model_type, missingness_type),
+            model_dir='mnist_conv_{0}_{1}_{2}'.format(model_type, missingness_type, run_num),
             params={'feature_columns': feature_columns, 'model_type': model_type},
             config=tf.estimator.RunConfig(
                 save_summary_steps=1000,
