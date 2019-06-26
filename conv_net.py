@@ -1,3 +1,4 @@
+import argparse
 import logging
 
 import numpy as np
@@ -9,60 +10,94 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 logger.propagate = False
 
-run_num = 1
+parser = argparse.ArgumentParser()
 
-mnist = tf.keras.datasets.mnist
+def str2bool(v):
+    return v.lower() in ("yes", "true", "t", "1")
 
-(x_train, y_train), (x_test, y_test) = mnist.load_data()
-y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+parser.add_argument('--run_id', type=int, default=1)
+parser.add_argument('--dataset', type=str, default='mnist', help='mnist | cifar10')
+parser.add_argument('--marginal_ll_mc_samples', type=int, default=3)
+parser.add_argument('--batch_size', type=int, default=256)
 
-x_train, x_test = x_train / 255.0, x_test / 255.0
-x_train[x_train >= 0.5] = 1.0
-x_train[x_train < 0.5] = 0.0
-x_test[x_test >= 0.5] = 1.0
-x_test[x_test < 0.5] = 0.0
+args = parser.parse_args()
 
-x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
-                                                      train_size=50000,
-                                                      test_size=10000)
+# see: https://arxiv.org/pdf/1202.2745.pdf for conv architectures
+# Multi-column Deep Neural Networks for Image Classification
+if args.dataset == 'mnist':
+    data = tf.keras.datasets.mnist
 
-z_dim = 256
-input_units = x_train.shape[1] * x_train.shape[2]
-encoder_layers = [(10, 5, 1), (20, 5, 1), 512]
-encoder_shapes = [(28, 28, 1), (14, 14, 10), (7, 7, 20)]
-encoder_shapes_pre_pool = [(28, 28, 1), (28, 28, 10), (14, 14, 20)]
-p_x_layers = [7*7*10,
-              ([-1, 7, 7, 10], 20, 5, 2, tf.nn.relu),
-              (None, 10, 5, 2, tf.nn.relu),
-              (None, 1, 5, 1, None)]
-max_epochs = 60
-max_epoch_without_improvement = 5
-mnist_dim = x_train.shape[1]
+    (x_train, y_train), (x_test, y_test) = data.load_data()
+    y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+
+    x_train = x_train/255.0
+    x_test = x_test/255.0
+    x_train[x_train >= 0.5] = 1.0
+    x_train[x_train < 0.5] = 0.0
+    x_test[x_test >= 0.5] = 1.0
+    x_test[x_test < 0.5] = 0.0
+
+    x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
+                                                          train_size=50000,
+                                                          test_size=10000)
+
+    z_dim = 250
+    input_units = x_train.shape[1] * x_train.shape[2]
+    encoder_layers = [(20, 3, 1), (40, 5, 1), 250]
+    encoder_shapes = [(28, 28, 1), (14, 14, 20), (7, 7, 40)]
+    encoder_shapes_pre_pool = [(28, 28, 1), (28, 28, 20), (14, 14, 40)]
+    p_x_layers = [7*7*20,
+                  ([-1, 7, 7, 20], 40, 5, 2, tf.nn.relu),
+                  (None, 20, 3, 2, tf.nn.relu),
+                  (None, 1, 5, 1, None)]
+elif args.dataset == 'cifar10':
+    data = tf.keras.datasets.cifar10
+
+    (x_train, y_train), (x_test, y_test) = data.load_data()
+    y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
+
+    x_train = x_train/255.0
+    x_test = x_test/255.0
+
+    x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
+                                                          train_size=40000,
+                                                          test_size=10000)
+
+    z_dim = 250
+    input_units = x_train.shape[1] * x_train.shape[2]
+    encoder_layers = [(300, 3, 1), (300, 2, 1), (300, 3, 1), (300, 2, 1), 300]
+    encoder_shapes = [(32, 32, 3), (16, 16, 300), (8, 8, 300), (4, 4, 300), (2, 2, 300)]
+    encoder_shapes_pre_pool = [(32, 32, 3), (32, 32, 300), (16, 16, 300),
+                               (8, 8, 300), (4, 4, 300)]
+    p_x_layers = [2*2*300,
+                  ([-1, 2, 2, 300], 300, 2, 2, tf.nn.relu),
+                  (None, 300, 3, 2, tf.nn.relu),
+                  (None, 300, 2, 2, tf.nn.relu),
+                  (None, 300, 3, 2, tf.nn.relu),
+                  (None, 6, 5, 1, None)]
+
+max_epochs = 100
+max_epoch_without_improvement = 10
+img_dim = x_train.shape[1]
 missingness_size = 'block' # pixel
 missingness_block_size = 7
 num_missing_blocks = 8
 
-def encoder(inputs, b=None, model_type=None):
+def encoder(inputs, model_type=None):
     net = inputs
-    b_net = b
-    if b is not None:
-        u = tf.get_variable('input_layer_mean',
-                            shape=encoder_shapes_pre_pool[0],
-                            initializer=tf.initializers.zeros())
-
-        layers = [(net, b_net, u)]
-    else:
-        layers = [net]
 
     for i, layer in enumerate(encoder_layers):
         if isinstance(layer, tuple):
             filters, kernel_size, strides = layer
 
             if i == 0:
-                if '_ind' in model_type and 'self_dropout' not in model_type:
-                    in_channels = 2
-                else:
+                if args.dataset == 'mnist':
                     in_channels = 1
+                elif args.dataset == 'cifar10':
+                    in_channels = 3
+                
+                if '_ind' in model_type:
+                    in_channels *= 2
             else:
                 in_channels = encoder_layers[i-1][0]
 
@@ -70,139 +105,29 @@ def encoder(inputs, b=None, model_type=None):
                                 shape=(kernel_size, kernel_size, in_channels, filters),
                                 initializer=tf.contrib.layers.xavier_initializer())
 
-            if b is not None:
-                b_net_ = b_net
-                u_ = u
+            net = tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME')
 
-                b_net = tf.nn.conv2d(tf.abs(b_net_ * u_), tf.abs(w),
-                                     strides=(1, strides, strides, 1), padding='SAME')/(
-                        tf.nn.conv2d(tf.abs(tf.ones_like(b_net_) * u_), tf.abs(w),
-                                     strides=(1, strides, strides, 1), padding='SAME') + 1e-6)
-                b_net = tf.stop_gradient(b_net)
+            bias = tf.get_variable('layer_{0}_bias'.format(i),
+                                   shape=encoder_shapes_pre_pool[i+1][2],
+                                   initializer=tf.initializers.zeros())
 
-                # b_net = tf.nn.conv2d(b_net_, tf.abs(w),
-                #                      strides=(1, strides, strides, 1), padding='SAME')
+            net = tf.nn.bias_add(net, bias)
+            net = tf.nn.relu(net)
 
-                bias = tf.get_variable('layer_{0}_bias'.format(i),
-                                       shape=encoder_shapes_pre_pool[i+1][2],
-                                       initializer=tf.initializers.zeros())
-
-                # bias1 = tf.get_variable('layer_{0}_bias_b_net'.format(i),
-                #                        shape=encoder_shapes_pre_pool[i+1][2],
-                #                        initializer=tf.initializers.zeros())
-
-                # gamma = tf.get_variable('layer_{0}_gamma_b_net'.format(i),
-                #                        shape=encoder_shapes_pre_pool[i+1][2],
-                #                        initializer=tf.initializers.ones())
-
-                u = tf.get_variable('layer_{0}_mean'.format(i),
-                                    shape=encoder_shapes_pre_pool[i+1],
-                                    initializer=tf.initializers.zeros())
-
-                # b_net = tf.stop_gradient(b_net)
-                # b_net = tf.nn.bias_add(b_net, bias1)
-                # b_net = tf.nn.sigmoid(gamma * b_net)
-                
-                # net = (tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME') +
-                #        tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
-                # net = (tf.nn.conv2d(b_net_ * net, w, strides=(1, strides, strides, 1), padding='SAME') +
-                #        tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
-                if i == 0:
-                    net = (tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME') +
-                       tf.nn.conv2d((1.0 - b_net_) * u_, w, strides=(1, strides, strides, 1), padding='SAME'))
-                else:
-                    net = tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME')
-
-                net = tf.nn.bias_add(net, bias)
-                # net = b_net * net
-                net = tf.nn.relu(net)
-
-                layers.append((net, b_net, u))
-
-                net, indicies = tf.nn.max_pool_with_argmax(net,
-                                                           ksize=[1, 2, 2, 1],
-                                                           strides=[1, 2, 2, 1],
-                                                           padding='SAME')
-
-                b_net = tf.gather(tf.reshape(b_net, [-1]), indicies)
-                b_net = tf.reshape(b_net, tf.shape(net))
-
-                multiples = [tf.shape(net)[0], 1, 1, 1]
-                u = tf.gather(
-                        tf.reshape(tf.tile(tf.expand_dims(u, axis=0), multiples), [-1]),
-                        indicies)
-                u = tf.reshape(u, tf.shape(net))
-            else:
-                net = tf.nn.conv2d(net, w, strides=(1, strides, strides, 1), padding='SAME')
-
-                bias = tf.get_variable('layer_{0}_bias'.format(i),
-                                       shape=encoder_shapes_pre_pool[i+1][2],
-                                       initializer=tf.initializers.zeros())
-
-                net = tf.nn.bias_add(net, bias)
-                net = tf.nn.relu(net)
-                layers.append(net)
-
-                net = tf.nn.max_pool(net, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
+            net = tf.nn.max_pool(net, ksize=[1, 2, 2, 1], strides=[1, 2, 2, 1], padding='SAME')
         else:
             net = tf.contrib.layers.flatten(net)
-
-            w = tf.get_variable('layer_{0}_w'.format(i),
-                                shape=(7*7*20, layer),
-                                initializer=tf.contrib.layers.xavier_initializer())
-            
-            bias = tf.get_variable('layer_{0}_bias'.format(i),
-                                   shape=layer,
-                                   initializer=tf.initializers.zeros())
-            if b is not None:
-                b_net = tf.contrib.layers.flatten(b_net)
-                u = tf.contrib.layers.flatten(u)
-                b_net_ = b_net
-                u_ = u
-
-                bias1 = tf.get_variable('layer_{0}_bias_b_net'.format(i),
-                                        shape=layer,
-                                        initializer=tf.initializers.zeros())
-
-                gamma = tf.get_variable('layer_{0}_gamma_b_net'.format(i),
-                                        shape=layer,
-                                        initializer=tf.initializers.ones())
-
-                u = tf.get_variable('layer_{0}_mean'.format(i),
-                                    shape=layer,
-                                    initializer=tf.initializers.zeros())
-
-                # b_net_transformed = tf.matmul(b_net, tf.abs(w))
-                # b_net_transformed = tf.stop_gradient(b_net_transformed)
-                # b_net = tf.nn.sigmoid(gamma * (b_net_transformed + bias1))
-
-                # net = tf.nn.relu(b_net *
-                #                  (tf.matmul(net, w) +  tf.matmul((1.0 - b_net_) * u_, w) + bias))
-
-
-                b_net_transformed = tf.matmul(tf.abs(b_net_ * u_), tf.abs(w))/(
-                    tf.matmul(tf.abs(tf.ones_like(b_net_) * u_), tf.abs(w)) + 1e-6)
-                b_net = tf.stop_gradient(b_net_transformed)
-
-                if i == 0:
-                    net = tf.nn.relu(tf.matmul(net, w) +  tf.matmul((1.0 - b_net_) * u_, w) + bias)
-                else:
-                    net = tf.nn.relu(tf.matmul(net, w) + bias)
-
-                layers.append((net, b_net, u))
-            else:
-                net = tf.nn.relu(tf.matmul(net, w) + bias)
-                layers.append(net)
+            net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
             
     net = tf.contrib.layers.flatten(net)
-    if b is not None:
-        b_net = tf.contrib.layers.flatten(b_net)
-        net = tf.concat([net, b_net], axis=1)
 
     mu = tf.contrib.layers.fully_connected(net, z_dim, activation_fn=None)
-    sigma = tf.contrib.layers.fully_connected(net, z_dim, activation_fn=tf.nn.softplus)
+    sigma = tf.contrib.layers.fully_connected(net, z_dim,
+                                              activation_fn=tf.nn.softplus,
+                                              biases_initializer=tf.constant_initializer(
+                                                np.log(np.e - np.ones(z_dim))))
     
-    return mu, sigma, layers
+    return mu, sigma
 
 def decoder(z, recon_b=False):
     net = z
@@ -217,8 +142,17 @@ def decoder(z, recon_b=False):
             net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
 
     if isinstance(layer, tuple):
-        p = tf.contrib.layers.flatten(net[:, :, :, 0])
+        if args.dataset == 'mnist':
+            p = tf.contrib.layers.flatten(net[:, :, :, 0])
+            sigma_logits = None
+        else:
+            p = tf.contrib.layers.flatten(net[:, :, :, :3])
+            sigma_logits = tf.contrib.layers.flatten(net[:, :, :, 3:])
+    elif args.dataset == 'cifar10':
+        p = net[:, :, :, :3]
+        sigma_logits = net[:, :, :, 3:]
 
+    b = None
     if recon_b:
         net = z
         for i, layer in enumerate(p_x_layers):
@@ -232,82 +166,132 @@ def decoder(z, recon_b=False):
                 net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
 
         if isinstance(layer, tuple):
-            b = tf.contrib.layers.flatten(net[:, :, :, 0])
-
-        return p, b
+            if args.dataset == 'mnist':
+                b = tf.contrib.layers.flatten(net[:, :, :, 0])
+            else:
+                b = tf.contrib.layers.flatten(net)
     
-    return p, None
+    return p, sigma_logits, b
 
 def model(features, labels, mode, params):
-    x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
-                   [-1, mnist_dim, mnist_dim])
-    x_input = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
-                   [-1, mnist_dim, mnist_dim])
-    b = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][2]),
-                   [-1, mnist_dim, mnist_dim])
-    recon_b = 'recon_b' in params['model_type']
-    
-    mu, sigma, layers = encoder(tf.stack([x_input, b], axis=3) if '_ind' in params['model_type'] and 'self_dropout' not in params['model_type'] else tf.expand_dims(x_input, -1),
-                                b=tf.expand_dims(b, 3) if 'self_dropout' in params['model_type'] else None,
-                                model_type=params['model_type'])
+    if args.dataset == 'mnist':
+        x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
+                       [-1, img_dim, img_dim])
+        x_input = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
+                       [-1, img_dim, img_dim])
+        b = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][2]),
+                       [-1, img_dim, img_dim])
+
+        mu, sigma, = encoder(tf.stack([x_input, b], axis=3)
+                             if '_ind' in params['model_type']
+                             else tf.expand_dims(x_input, -1),
+                             model_type=params['model_type'])
+    elif args.dataset == 'cifar10':
+        x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
+                       [-1, img_dim, img_dim, 3])
+        x_input = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
+                       [-1, img_dim, img_dim, 3])
+        b = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][2]),
+                       [-1, img_dim, img_dim, 3])
+
+        mu, sigma, = encoder(tf.concat([x_input, b], axis=3)
+                             if '_ind' in params['model_type']
+                             else x_input,
+                             model_type=params['model_type'])
 
     q_z = tf.distributions.Normal(mu, sigma)
     
     p_z = tf.distributions.Normal(loc=np.zeros(z_dim, dtype=np.float32), scale=np.ones(z_dim, dtype=np.float32))
-        
-    decoder_inputs = z_sample = q_z.sample()
-    if 'dec_cond_b' in params['model_type']:
-        decoder_inputs = tf.concat([z_sample, tf.contrib.layers.flatten(b)], axis=1)
-    x_logits, b_logits = decoder(decoder_inputs, recon_b=recon_b)
-    x_logits = tf.reshape(x_logits, [-1, mnist_dim, mnist_dim])
-    if b_logits is not None:
-        b_logits = tf.reshape(b_logits, [-1, mnist_dim, mnist_dim])
-    x_pred = tf.nn.sigmoid(x_logits)
     
+    kl = tf.reduce_mean(tf.reduce_sum(tf.distributions.kl_divergence(q_z, p_z), axis=1))
+
+    recon_b = 'recon_b' in params['model_type']
+
+    def log_probs(z_sample):
+        if args.dataset == 'mnist':
+            x_logits, _, b_logits = decoder(z_sample, recon_b=recon_b)
+            x_logits = tf.reshape(x_logits, [-1, img_dim, img_dim])
+            if b_logits is not None:
+                b_logits = tf.reshape(b_logits, [-1, img_dim, img_dim])
+            x_pred = tf.nn.sigmoid(x_logits)
+        elif args.dataset == 'cifar10':
+            x_logits, x_sigma_logits, b_logits = decoder(z_sample, recon_b=recon_b)
+            x_logits = tf.reshape(x_logits, [-1, img_dim, img_dim, 3])
+            if b_logits is not None:
+                b_logits = tf.reshape(b_logits, [-1, img_dim, img_dim, 3])
+            x_pred = tf.nn.sigmoid(x_logits)
+            x_sigma = tf.nn.softplus(x_sigma_logits)
+
+        if args.dataset == 'mnist':
+            log_prob = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum(b * 
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=b * x, logits=b * x_logits), axis=2), axis=1))
+            imputation_log_prob = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum((1.0 - b) * 
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=(1.0 - b) * x, logits=(1.0 - b) * x_logits), axis=2), axis=1))
+        elif args.dataset == 'cifar10':
+            p_x = tf.distributions.Normal(tf.contrib.layers.flatten(x_pred),
+                                          tf.contrib.layers.flatten(x_sigma))
+            log_prob_full = p_x.log_prob(tf.contrib.layers.flatten(x))
+            log_prob = tf.reduce_mean(
+                tf.reduce_sum(tf.contrib.layers.flatten(b) * log_prob_full, axis=1))
+            imputation_log_prob = tf.reduce_mean(
+                tf.reduce_sum(tf.contrib.layers.flatten(1.0 - b) * log_prob_full, axis=1))
+
+        if recon_b:
+            log_prob_b = -1 * tf.reduce_mean(tf.reduce_sum(
+                tf.nn.sigmoid_cross_entropy_with_logits(labels=b, logits=b_logits), axis=[2,1]))
+        else:
+            log_prob_b = 0.0
+
+        return x_pred, log_prob, imputation_log_prob, log_prob_b
+
+    def log_probs_marginal_estimator():
+        print '#' * 50, 'log_probs_marginal_estimator'
+        log_prob_l = []
+        imputation_log_prob_l = []
+        log_prob_b_l = []
+
+        for _ in range(args.marginal_ll_mc_samples):
+            z_sample = q_z.sample()
+
+            with tf.variable_scope('log_probs', reuse=tf.AUTO_REUSE):
+                _, log_prob, imputation_log_prob, log_prob_b = log_probs(z_sample)
+
+            importance_w = p_z.prob(z_sample)/q_z.prob(z_sample)
+            f = (1.0/float(args.marginal_ll_mc_samples)) * importance_w
+
+            log_prob_l.append(f * log_prob)
+            imputation_log_prob_l.append(f * imputation_log_prob)
+            log_prob_b_l.append(f * log_prob_b)
+
+        log_prob = tf.reduce_sum(log_prob_l)
+        imputation_log_prob = tf.reduce_sum(imputation_log_prob_l)
+        log_prob_b = tf.reduce_sum(log_prob_b_l)
+        return log_prob, imputation_log_prob, log_prob_b
+    def log_probs_mc_sample():
+        print '#' * 50, 'log_probs_mc_sample'
+        z_sample = q_z.sample()
+
+        with tf.variable_scope('log_probs', reuse=tf.AUTO_REUSE):
+            x_pred, log_prob, imputation_log_prob, log_prob_b = log_probs(z_sample)
+        return log_prob, imputation_log_prob, log_prob_b
+
+    pred = tf.cast(tf.feature_column.input_layer(features, params['feature_columns'][3]), tf.bool)[0, 0]
+    print 'CHECK', pred
+    log_prob, imputation_log_prob, log_prob_b = tf.cond(pred,
+                                                        log_probs_marginal_estimator,
+                                                        log_probs_mc_sample)
+        
     if mode == tf.estimator.ModeKeys.PREDICT:
         return tf.estimator.EstimatorSpec(mode,
             predictions={'x': x_pred, 'z': mu},
             export_outputs={'y': tf.estimator.export.ClassificationOutput(scores=x_pred)})
-    
-#     p_x_z = tf.distributions.Bernoulli(probs=x_mu)
-    
-    kl = tf.reduce_mean(tf.reduce_sum(tf.distributions.kl_divergence(q_z, p_z), axis=1))
-    # log_prob = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum(
-    #     b * tf.nn.sigmoid_cross_entropy_with_logits(labels=x, logits=x_logits), axis=2), axis=1))
-#     log_prob = tf.reduce_mean(tf.reduce_sum(p_x_z.log_prob(inputs), axis=1))
-
-    log_prob = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum(b * 
-        tf.nn.sigmoid_cross_entropy_with_logits(labels=b * x, logits=b * x_logits), axis=2), axis=1))
-    imputation_log_prob = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum((1.0 - b) * 
-        tf.nn.sigmoid_cross_entropy_with_logits(labels=(1.0 - b) * x, logits=(1.0 - b) * x_logits), axis=2), axis=1))
-    if recon_b:
-        log_prob_b = -1 * tf.reduce_mean(tf.reduce_sum(tf.reduce_sum(
-            tf.nn.sigmoid_cross_entropy_with_logits(labels=b, logits=b_logits), axis=2), axis=1))
         
+    if recon_b:
         elbo = log_prob + log_prob_b - kl
     else:
         elbo = log_prob - kl
-
-    if 'self_dropout' in params['model_type']:
-        loss = -elbo
-        for i, (net, b_net, u) in enumerate(layers):
-            fixed_net = tf.stop_gradient(net)
-            # if i == 0:
-            #     fixed_b_net = tf.stop_gradient(b_net)
-            #     loss += tf.reduce_mean(tf.reduce_sum((fixed_b_net * (fixed_net - u))**2, axis=1))
-            # elif isinstance(encoder_layers[i-1], tuple):
-            #     loss += tf.reduce_mean(tf.reduce_sum(
-            #         tf.reduce_sum((fixed_net - u)**2, axis=1), axis=2))
-            # else:
-            #     loss += tf.reduce_mean(tf.reduce_sum((fixed_net - u)**2, axis=1))
-            fixed_b_net = tf.stop_gradient(b_net)
-            if isinstance(encoder_layers[i-1], tuple):
-                loss += tf.reduce_mean(tf.reduce_sum(
-                    tf.reduce_sum(fixed_b_net * (fixed_net - u)**2, axis=1), axis=2))
-            else:
-                loss += tf.reduce_mean(tf.reduce_sum(fixed_b_net * (fixed_net - u)**2, axis=1))
-    else:
-        loss = -elbo
+    
+    loss = -elbo
 
     tf.summary.scalar('elbo', elbo)
     tf.summary.scalar('kl', kl)
@@ -322,7 +306,7 @@ def model(features, labels, mode, params):
                                            'elbo': tf.metrics.mean(elbo),
                                            'kl': tf.metrics.mean(kl)})
 
-    optimizer = tf.train.AdamOptimizer(learning_rate=0.002)
+    optimizer = tf.train.AdamOptimizer(learning_rate=0.001)
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
         train_op = optimizer.minimize(loss,
@@ -331,9 +315,7 @@ def model(features, labels, mode, params):
 
 # for missingness_type, p in [('dependent', 0.5), ('independent', 0.5)]:
 for missingness_type, p in [('independent', 0.5)]:
-    # for model_type in ['VAE_ind_dec_cond_b', 'VAE_ind_recon_b', 'VAE', 'VAE_ind']:
     for model_type in ['VAE', 'VAE_mean_imp', 'VAE_ind', 'VAE_ind_mean_imp']:
-    # for model_type in ['VAE_ind_self_dropout_recon_b', 'VAE_ind_self_dropout', 'VAE_ind', 'VAE', 'VAE_ind_recon_b']:
         if missingness_type == 'independent' and 'recon_b' in model_type:
             continue
         if missingness_type == 'independent' and missingness_size == 'block':
@@ -342,73 +324,110 @@ for missingness_type, p in [('independent', 0.5)]:
             b_test = np.ones_like(x_test)
             for b in range(x_train.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim)
-                    y = np.random.choice(mnist_dim)
-                    b_train[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+                    x = np.random.choice(img_dim)
+                    y = np.random.choice(img_dim)
+                    if args.dataset == 'mnist':
+                        b_train[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_train[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
             for b in range(x_valid.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim)
-                    y = np.random.choice(mnist_dim)
-                    b_valid[b, max(x - 7, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+                    x = np.random.choice(img_dim)
+                    y = np.random.choice(img_dim)
+                    if args.dataset == 'mnist':
+                        b_valid[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_valid[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
             for b in range(x_test.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim)
-                    y = np.random.choice(mnist_dim)
-                    b_test[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+                    x = np.random.choice(img_dim)
+                    y = np.random.choice(img_dim)
+                    if args.dataset == 'mnist':
+                        b_test[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_test[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
         elif missingness_type == 'dependent' and missingness_size == 'block':
             b_train = np.ones_like(x_train)
             b_valid = np.ones_like(x_valid)
             b_test = np.ones_like(x_test)
             for b in range(x_train.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim) + int(2 * y_train[b] - 9)
-                    y = np.random.choice(mnist_dim) + int(2 * y_train[b] - 9)
-                    b_train[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+                    x = np.random.choice(img_dim) + int(2 * y_train[b] - 9)
+                    y = np.random.choice(img_dim) + int(2 * y_train[b] - 9)
+                    if args.dataset == 'mnist':
+                        b_train[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_train[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
             for b in range(x_valid.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim) + int(2 * y_valid[b] - 9)
-                    y = np.random.choice(mnist_dim) + int(2 * y_valid[b] - 9)
-                    b_valid[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
+                    x = np.random.choice(img_dim) + int(2 * y_valid[b] - 9)
+                    y = np.random.choice(img_dim) + int(2 * y_valid[b] - 9)
+                    if args.dataset == 'mnist':
+                        b_valid[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_valid[b,
+                                max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                                max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
             for b in range(x_test.shape[0]):
                 for _ in range(num_missing_blocks):
-                    x = np.random.choice(mnist_dim) + int(2 * y_test[b] - 9)
-                    y = np.random.choice(mnist_dim) + int(2 * y_test[b] - 9)
-                    b_test[b, max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, mnist_dim), max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, mnist_dim)] = 0.0
-        elif missingness_type == 'independent':
-            b_train = np.random.uniform(size=x_train.shape) > p
-            # x_train_ = b_train * x_train
-            b_valid = np.random.uniform(size=x_valid.shape) > p
-            # x_valid_ = b_valid * x_valid
-            b_test = np.random.uniform(size=x_test.shape) > p
-            # x_test_ = b_test * x_test
-        elif missingness_type == 'dependent':
-            b_train = np.random.uniform(size=x_train.shape) > np.expand_dims(
-                np.expand_dims(p * (1 + y_train)/10.0, axis=1), axis=2)
-            # x_train_ = b_train * x_train
-            b_valid = np.random.uniform(size=x_valid.shape) > np.expand_dims(
-                np.expand_dims(p * (1 + y_valid)/10.0, axis=1), axis=2)
-            # x_valid_ = b_valid * x_valid
-            b_test = np.random.uniform(size=x_test.shape) > np.expand_dims(
-                np.expand_dims(p * (1 + y_test)/10.0, axis=1), axis=2)
-            # x_test_ = b_test * x_test
+                    x = np.random.choice(img_dim) + int(2 * y_test[b] - 9)
+                    y = np.random.choice(img_dim) + int(2 * y_test[b] - 9)
+                    if args.dataset == 'mnist':
+                        b_test[b,
+                               max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                               max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+                    elif args.dataset == 'cifar10':
+                        b_test[b,
+                               max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                               max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                                :] = 0.0
+
+        print 'Train fraction of pixels missing:', 1.0 - np.sum(b_train)/np.sum(np.ones_like(b_train))
+        print 'Valid fraction of pixels missing:', 1.0 - np.sum(b_valid)/np.sum(np.ones_like(b_valid))
+        print 'Test fraction of pixels missing:', 1.0 - np.sum(b_test)/np.sum(np.ones_like(b_test))
 
         if '_mean_imp' in model_type:
-            x_mu = np.true_divide(np.sum(x_train, axis=0), np.sum(b_train, axis=0))
+            x_mu = np.true_divide(np.sum(b_train * x_train, axis=0), np.sum(b_train, axis=0))
             x_train_input = b_train * x_train + (1.0 - b_train) * x_mu
             x_valid_input = b_valid * x_valid + (1.0 - b_valid) * x_mu
             x_test_input = b_test * x_test + (1.0 - b_test) * x_mu
         else:
-            x_train_input = x_train * b_train
-            x_valid_input = x_valid * b_valid
-            x_test_input = x_test * b_test
+            x_train_input = b_train * x_train
+            x_valid_input = b_valid * x_valid
+            x_test_input = b_test * x_test
 
-        feature_columns = [tf.feature_column.numeric_column(key='x', shape=[mnist_dim, mnist_dim]),
-                           tf.feature_column.numeric_column(key='x_input', shape=[mnist_dim, mnist_dim]),
-                           tf.feature_column.numeric_column(key='b', shape=[mnist_dim, mnist_dim])]
+        feature_columns = [tf.feature_column.numeric_column(key='x', shape=[img_dim, img_dim]),
+                           tf.feature_column.numeric_column(key='x_input', shape=[img_dim, img_dim]),
+                           tf.feature_column.numeric_column(key='b', shape=[img_dim, img_dim]),
+                           tf.feature_column.numeric_column(key='estimate_log_p_x', shape=[])]
 
         vae = tf.estimator.Estimator(
             model_fn=model,
-            model_dir='mnist_conv_{0}_{1}_{2}'.format(model_type, missingness_type, run_num),
+            model_dir='{0}_conv_{1}_{2}_{3}'.format(args.dataset, model_type,
+                                                    missingness_type, args.run_id),
             params={'feature_columns': feature_columns, 'model_type': model_type},
             config=tf.estimator.RunConfig(
                 save_summary_steps=1000,
@@ -417,16 +436,19 @@ for missingness_type, p in [('independent', 0.5)]:
                 log_step_count_steps=1000))
         
         train_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_train, 'x_input': x_train_input, 'b': b_train},
-            shuffle=True)
+            {'x': x_train, 'x_input': x_train_input, 'b': b_train,
+             'estimate_log_p_x': np.zeros(x_train.shape[0])},
+            shuffle=True, batch_size=args.batch_size)
 
         valid_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_valid, 'x_input': x_valid_input, 'b': b_valid},
-            shuffle=False)
+            {'x': x_valid, 'x_input': x_valid_input, 'b': b_valid,
+             'estimate_log_p_x': np.ones(x_valid.shape[0])},
+            shuffle=False, batch_size=args.batch_size)
         
         test_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_test, 'x_input': x_test_input, 'b': b_test},
-            shuffle=False)
+            {'x': x_test, 'x_input': x_test_input, 'b': b_test,
+            'estimate_log_p_x': np.ones(x_test.shape[0])},
+            shuffle=False, batch_size=args.batch_size)
 
         best_valid_elbo = None
         best_checkpoint = None
@@ -435,8 +457,8 @@ for missingness_type, p in [('independent', 0.5)]:
         for _ in range(max_epochs):
             vae.train(steps=None, input_fn=train_input_fn)
 
-            eval_result = vae.evaluate(input_fn=train_input_fn)
-            logging.info('End of epoch evaluation (train set): ' + str(eval_result))
+            # eval_result = vae.evaluate(input_fn=train_input_fn)
+            # logging.info('End of epoch evaluation (train set): ' + str(eval_result))
 
             eval_result = vae.evaluate(input_fn=valid_input_fn)
             logging.info('End of epoch evaluation (valid set): ' + str(eval_result))
@@ -461,65 +483,4 @@ for missingness_type, p in [('independent', 0.5)]:
             input_fn=test_input_fn,
             checkpoint_path=best_checkpoint)
         logging.info('Test set evaluation: {0}'.format(eval_result))
-        
-        ### representation learning evaluation (train linear classifier on learned z)
-        
-        # input_fn = tf.estimator.inputs.numpy_input_fn({'x': x_train_, 'b': b_train}, shuffle=False)
-        # z_train = np.asarray([pred['z'] for pred in vae.predict(input_fn=input_fn,
-        #                                                                checkpoint_path=best_checkpoint)])
-        # train_input_fn = tf.estimator.inputs.numpy_input_fn(
-        #     {'z': z_train}, y=y_train, shuffle=True)
-        
-        # input_fn = tf.estimator.inputs.numpy_input_fn({'x': x_valid_, 'b': b_valid}, shuffle=False)
-        # z_valid = np.asarray([pred['z'] for pred in vae.predict(input_fn=input_fn,
-        #                                                                checkpoint_path=best_checkpoint)])
-        # valid_input_fn = tf.estimator.inputs.numpy_input_fn(
-        #     {'z': z_valid}, y=y_valid, shuffle=False)
-        
-        # input_fn = tf.estimator.inputs.numpy_input_fn({'x': x_test_, 'b': b_test}, shuffle=False)
-        # z_test = np.asarray([pred['z'] for pred in vae.predict(input_fn=input_fn,
-        #                                                                checkpoint_path=best_checkpoint)])
-        # test_input_fn = tf.estimator.inputs.numpy_input_fn(
-        #     {'z': z_test}, y=y_test, shuffle=False)
-        
-        # classifier = tf.estimator.LinearClassifier(
-        #     feature_columns=[tf.feature_column.numeric_column(key='z', shape=[z_dim])],
-        #     model_dir='mnist_conv_{0}_{1}_classifier'.format(model_type, missingness_type),
-        #     n_classes=10,
-        #     config=tf.estimator.RunConfig(
-        #         save_summary_steps=1000,
-        #         save_checkpoints_steps=6000,
-        #         keep_checkpoint_max=1000,
-        #         log_step_count_steps=1000))
-        
-        # best_valid_error = None
-        # best_checkpoint = None
-        # best_estimator = None
-        # epochs_since_improvement = 0
-        # for _ in range(max_epochs):
-        #     classifier.train(steps=None, input_fn=train_input_fn)
 
-        #     eval_result = classifier.evaluate(input_fn=train_input_fn)
-        #     logging.info('End of epoch evaluation (train set): ' + str(eval_result))
-
-        #     eval_result = classifier.evaluate(input_fn=valid_input_fn)
-        #     logging.info('End of epoch evaluation (valid set): ' + str(eval_result))
-
-        #     if best_valid_error is None or eval_result['loss'] < best_valid_error:
-        #         best_checkpoint = classifier.latest_checkpoint()
-        #         best_valid_error = eval_result['loss']
-        #         epochs_since_improvement = 0
-        #     else:
-        #         epochs_since_improvement += 1
-        #         if epochs_since_improvement >= max_epoch_without_improvement:
-        #             break
-
-        # eval_result = classifier.evaluate(
-        #     input_fn=valid_input_fn,
-        #     checkpoint_path=best_checkpoint)
-        # logging.info('Valid set evaluation: {0}'.format(eval_result))
-        
-        # eval_result = classifier.evaluate(
-        #     input_fn=test_input_fn,
-        #     checkpoint_path=best_checkpoint)
-        # logging.info('Test set evaluation: {0}'.format(eval_result))
