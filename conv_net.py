@@ -17,12 +17,14 @@ def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
 parser.add_argument('--run_id', type=int, default=1)
-parser.add_argument('--dataset', type=str, default='mnist', help='binary_minst | mnist | cifar10 | svhn')
+parser.add_argument('--dataset', type=str, default='mnist',
+                    help='binary_minst | mnist | cifar10 | svhn')
 parser.add_argument('--marginal_ll_mc_samples', type=int, default=100)
 parser.add_argument('--batch_size', type=int, default=256)
 parser.add_argument('--save_imgs', type=str2bool, default=False)
-parser.add_argument('--predict_variance', type=str2bool, default=False)
-parser.add_argument('--learn_variance', type=str2bool, default=False)
+parser.add_argument('--likelihood', type=str, default='bernoulli',
+                    help='bernoulli | logistic_mixture')
+parser.add_argument('--k', type=int, default=3, help='number of logistic mixture components')
 
 args = parser.parse_args()
 
@@ -37,15 +39,8 @@ if 'mnist' in args.dataset:
     (x_train, y_train), (x_test, y_test) = data.load_data()
     y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
 
-    if args.learn_variance or args.predict_variance:
-        x_train, x_test = x_train.astype(np.float32), x_test.astype(np.float32)
-        x_train += np.random.uniform(size=x_train.shape)
-        x_test += np.random.uniform(size=x_test.shape)
-        x_train = x_train/256.0
-        x_test = x_test/256.0
-    else:
-        x_train = x_train/255.0
-        x_test = x_test/255.0
+    x_train = x_train/255.0
+    x_test = x_test/255.0
 
     if args.dataset == 'binary_mnist':
         x_train[x_train >= 0.5] = 1.0
@@ -77,7 +72,7 @@ if 'mnist' in args.dataset:
                   (None, 20, 3, 2, tf.nn.relu)]
     p_x_b_z_layers = [(None, 10, 3, 1, tf.nn.relu),
                       (None, 5, 3, 1, tf.nn.relu),
-                      (None, 2, 3, 1, None) if args.predict_variance else (None, 1, 3, 1, None)]
+                      (None, 3 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture' else (None, 1, 3, 1, None)]
 elif 'svhn' in args.dataset:
     x_train, x_test = chainer.datasets.get_svhn(withlabel=False, scale=255.0)
 
@@ -88,15 +83,6 @@ elif 'svhn' in args.dataset:
                              np.expand_dims(x_test[:, 1, :, :], -1),
                              np.expand_dims(x_test[:, 2, :, :], -1)), axis=3)
 
-    # if args.learn_variance or args.predict_variance:
-    #     x_train, x_test = x_train.astype(np.float32), x_test.astype(np.float32)
-    #     x_train += np.random.uniform(size=x_train.shape)
-    #     x_test += np.random.uniform(size=x_test.shape)
-    #     x_train = x_train/256.0
-    #     x_test = x_test/256.0
-    # else:
-    #     x_train = x_train/255.0
-    #     x_test = x_test/255.0
     x_train = x_train/255.0
     x_test = x_test/255.0
 
@@ -112,22 +98,15 @@ elif 'svhn' in args.dataset:
                   (None, 20, 3, 2, tf.nn.relu)]
     p_x_b_z_layers = [(None, 10, 3, 1, tf.nn.relu),
                       (None, 5, 3, 1, tf.nn.relu),
-                      (None, 6, 3, 1, None) if args.predict_variance else (None, 3, 3, 1, None)]
+                      (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture' else (None, 3, 3, 1, None)]
 elif args.dataset == 'cifar10':
     data = tf.keras.datasets.cifar10
 
     (x_train, y_train), (x_test, y_test) = data.load_data()
     y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
 
-    if args.learn_variance or args.predict_variance:
-        x_train, x_test = x_train.astype(np.float32), x_test.astype(np.float32)
-        x_train += np.random.uniform(size=x_train.shape)
-        x_test += np.random.uniform(size=x_test.shape)
-        x_train = x_train/256.0
-        x_test = x_test/256.0
-    else:
-        x_train = x_train/255.0
-        x_test = x_test/255.0
+    x_train = x_train/255.0
+    x_test = x_test/255.0
 
     x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
                                                           train_size=40000,
@@ -146,7 +125,7 @@ elif args.dataset == 'cifar10':
                   (None, 100, 3, 2, tf.nn.relu)]
     p_x_b_z_layers = [(None, 15, 3, 1, tf.nn.relu),
                       (None, 5, 3, 1, tf.nn.relu),
-                      (None, 6, 3, 1, None) if args.predict_variance else (None, 3, 3, 1, None)]
+                      (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture' else (None, 3, 3, 1, None)]
     # encoder_layers = [(300, 3, 1), (300, 2, 1), (300, 3, 1), (300, 2, 1), 300]
     # encoder_shapes = [(32, 32, 3), (16, 16, 300), (8, 8, 300), (4, 4, 300), (2, 2, 300)]
     # encoder_shapes_pre_pool = [(32, 32, 3), (32, 32, 300), (16, 16, 300),
@@ -253,18 +232,30 @@ def decoder(z, b=None):
 
         net = tf.nn.bias_add(net, bias)
 
-        if args.predict_variance:
-            if 'mnist' in args.dataset:
-                p = net[:, :, :, 0]
-                log_var = net[:, :, :, 1]
-            else:
-                p = net[:, :, :, :3]
-                log_var = net[:, :, :, 3:]
+        if args.likelihood == 'logistic_mixture':
+            assert 'mnist' not in args.dataset
+            mean_logit = net[:, :, :, 0:3*args.k]
+            scale_logit = net[:, :, :, 3*args.k:6*args.k]
+            pi_logit = net[:, :, :, 6*args.k:]
         else:
-            p = net
-            log_var = None
+            mean_logit = net
+            scale_logit = None
+            pi_logit = None
 
-    return p, log_var
+    return mean_logit, scale_logit, pi_logit
+
+def log_sum_exp(x):
+    """credit: https://github.com/openai/pixel-cnn/blob/master/pixel_cnn_pp/nn.py"""
+    axis = len(x.get_shape())-1
+    m = tf.reduce_max(x, axis)
+    m2 = tf.reduce_max(x, axis, keepdims=True)
+    return m + tf.log(tf.reduce_sum(tf.exp(x-m2), axis))
+
+def log_prob_from_logits(x):
+    """credit: https://github.com/openai/pixel-cnn/blob/master/pixel_cnn_pp/nn.py"""
+    axis = len(x.get_shape())-1
+    m = tf.reduce_max(x, axis, keepdims=True)
+    return x - m - tf.log(tf.reduce_sum(tf.exp(x-m), axis, keepdims=True))
 
 def model(features, labels, mode, params):
     if 'mnist' in args.dataset:
@@ -300,113 +291,78 @@ def model(features, labels, mode, params):
 
     def log_probs(z_sample):
         if args.dataset == 'binary_mnist' or args.dataset == 'mnist':
-            x_logits, x_log_var = decoder(z_sample,
-                                          b=b if '_decoder_b' in params['model_type'] else None)
+            x_logits, scale_logit, pi_logit = decoder(z_sample,
+                                                      b=b if '_decoder_b' in params['model_type'] else None)
             x_logits = tf.reshape(x_logits, [-1, img_dim, img_dim])
             x_pred = tf.nn.sigmoid(x_logits)
-            if args.dataset == 'mnist' and args.predict_variance:
-                x_log_var = tf.reshape(x_log_var, [-1, img_dim, img_dim])
-                x_var = tf.exp(x_log_var) + 1e-2
         elif args.dataset in ('cifar10', 'svhn'):
-            x_logits, x_log_var = decoder(z_sample,
-                                          b=b if '_decoder_b' in params['model_type'] else None)
-            x_logits = tf.reshape(x_logits, [-1, img_dim, img_dim, 3])
-            # x_pred = tf.nn.sigmoid(x_logits)
-            x_pred = x_logits
-            if args.predict_variance:
-                x_var = tf.exp(x_log_var) + 1e-2
-        
-        # if args.dataset == 'binary_mnist' or args.dataset == 'mnist':
-        if args.dataset == 'binary_mnist':
-            # valid for real valued MNIST: http://ruishu.io/2018/03/19/bernoulli-vae/
+            x_logits, scale_logit, pi_logit = decoder(z_sample,
+                                                      b=b if '_decoder_b' in params['model_type'] else None)
+            
+            if args.likelihood == 'logistic_mixture':
+                scale = tf.exp(scale_logit) + 1e-2
+
+                # pi = tf.concat([tf.nn.softmax(pi_logit[:, :, :, i*3:(i+1)*3], axis=3)
+                #                for i in range(args.k)], axis=3)
+
+                if args.k == 1:
+                    x_pred = x_logits
+                else:
+                    x_pred = tf.concat([tf.expand_dims(tf.reduce_sum(tf.gather(pi * x_logits,
+                                                                  [i * 3 + j for i in range(args.k)],
+                                                                  axis=3), axis=3), axis=3)
+                                       for j in range(3)], axis=3)
+
+                    # x_pred = tf.reduce_sum(tf.stack([pi[:, :, :, i*3:(i+1)*3] * x_logits[:, :, :, i*3:(i+1)*3]
+                    #                                 for i in range(args.k)], axis=3),
+                    #                        axis=4)
+            else:
+                x_logits = tf.reshape(x_logits, [-1, img_dim, img_dim, 3])
+                x_pred = tf.nn.sigmoid(x_logits)
+
+        if args.likelihood == 'bernoulli':
+            # valid for even real valued MNIST: http://ruishu.io/2018/03/19/bernoulli-vae/
             # log_prob_full = tf.distributions.Bernoulli(logits=x_logits).log_prob(x)
             log_prob_full = -1 * tf.nn.sigmoid_cross_entropy_with_logits(labels=x, logits=x_logits)
-            log_prob = tf.reduce_mean(tf.reduce_sum(b * log_prob_full, axis=[2,1]))
-            imputation_log_prob = tf.reduce_mean(tf.reduce_sum((1.0 - b) * log_prob_full, axis=[2,1]))
-        elif args.predict_variance and (args.dataset in ('cifar10', 'mnist', 'svhn')):
-            x_pred = x_logits
-            # p_x = tf.distributions.Normal(
-            #     loc=tf.contrib.layers.flatten(x_pred),
-            #     scale=tf.contrib.layers.flatten(x_sigma))
-            # log_prob_full = p_x.log_prob(tf.contrib.layers.flatten(x))
-            # log_prob = tf.reduce_mean(
-            #     tf.reduce_sum(tf.contrib.layers.flatten(b) * log_prob_full, axis=1))
-            # imputation_log_prob = tf.reduce_mean(
-            #     tf.reduce_sum(tf.contrib.layers.flatten(1.0 - b) * log_prob_full, axis=1))
-            
-            # log_prob_full = -0.5 * tf.cast(tf.log(2 * np.pi * x_var), tf.float32) -(x - x_pred)**2/(2 * x_var)
-            # log_prob = tf.reduce_mean(
-            #     tf.reduce_sum(b * log_prob_full,
-            #                   axis=[2,1] if args.dataset == 'mnist'
-            #                   else [3,2,1]))
-            # imputation_log_prob = tf.reduce_mean(
-            #     tf.reduce_sum((1.0 - b) * log_prob_full,
-            #                   axis=[2,1] if args.dataset == 'mnist'
-            #                   else [3,2,1]))
-            
-            centered_x = x - x_pred
-            # centered_x = tf.Print(centered_x, [tf.reduce_mean(x_pred), tf.reduce_min(x_pred), tf.reduce_max(x_pred)], message='x_pred')
-            # x_var = tf.Print(x_var, [tf.reduce_mean(x_var), tf.reduce_min(x_var), tf.reduce_max(x_var)], message='x_var')
-            upper_in = (centered_x + (1.0/255.0))/x_var
+            log_prob = tf.reduce_mean(tf.reduce_sum(b * log_prob_full,
+                                                    axis=[2,1] if 'mnist' in args.dataset else [3,2,1]))
+            imputation_log_prob = tf.reduce_mean(tf.reduce_sum((1.0 - b) * log_prob_full,
+                                                 axis=[2,1] if 'mnist' in args.dataset else [3,2,1]))
+        elif args.likelihood == 'logistic_mixture':
+            x_expanded = tf.concat([x for _ in range(args.k)], axis=3)
+            centered_x = x_expanded - x_logits
+            upper_in = (centered_x + (1.0/255.0))/scale
             upper_cdf = tf.nn.sigmoid(upper_in)
-            lower_in = (centered_x - (1.0/255.0))/x_var
+            lower_in = (centered_x - (1.0/255.0))/scale
             lower_cdf = tf.nn.sigmoid(lower_in)
             cdf_delta = upper_cdf - lower_cdf
             
-            mid_in = centered_x/x_var
-            log_pdf_mid = mid_in - x_log_var - 2.0 * tf.nn.softplus(mid_in)
+            mid_in = centered_x/scale
+            log_pdf_mid = mid_in - scale_logit - 2.0 * tf.nn.softplus(mid_in)
             log_cdf_plus = upper_in - tf.nn.softplus(upper_in)
             log_one_minus_cdf_min = -tf.nn.softplus(lower_in)
             
-            log_prob_full = tf.where(x < -0.999,
+            log_prob_comp = tf.where(x_expanded < -0.999,
                                      log_cdf_plus,
-                                     tf.where(x > 0.999,
+                                     tf.where(x_expanded > 0.999,
                                               log_one_minus_cdf_min,
                                               tf.where(cdf_delta > 1e-5,
                                                        tf.log(tf.maximum(cdf_delta, 1e-12)),
                                                        log_pdf_mid - np.log(127.5))))
 
-            log_prob = tf.reduce_mean(
-                tf.reduce_sum(b * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist'
-                              else [3,2,1]))
-            imputation_log_prob = tf.reduce_mean(
-                tf.reduce_sum((1.0 - b) * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist'
-                              else [3,2,1]))
+            log_prob_comp += tf.log(pi)
 
-        elif args.learn_variance and (args.dataset in ('cifar10', 'mnist', 'svhn')):
-            x_pred = x_logits
-            log_var = tf.get_variable('log_var',
-                                      [28, 28] if args.dataset == 'mnist' else [32, 32, 3],
-                                      initializer=tf.zeros_initializer(), trainable=True)
-            # log_var = tf.get_variable('log_var', [1],
-            #                           initializer=tf.zeros_initializer(), trainable=True)
-            var = tf.exp(log_var) + 1e-3
-            # log_prob_full = -0.5 * tf.cast(tf.log(2 * np.pi), tf.float32) -0.5 * log_var -0.5 * tf.square(x - x_pred)/var
-            log_prob_full = -0.5 * tf.cast(tf.log(2 * np.pi * var), tf.float32) -0.5 * tf.divide(tf.square(x - x_pred), var)
-            log_prob = tf.reduce_mean(
-                tf.reduce_sum(b * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist'
-                              else [3,2,1]))
-            imputation_log_prob = tf.reduce_mean(
-                tf.reduce_sum((1.0 - b) * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist'
-                              else [3,2,1]))
-        elif args.dataset in ('cifar10', 'mnist', 'svhn'):
-            # log_prob_full = -0.5 * tf.cast(tf.log(2 * np.pi * params['sigma_hat']), tf.float32) - tf.square(x - x_pred)/(2 * params['sigma_hat'])
-            # log_prob_full = -tf.square(x - x_pred)/(2 * params['sigma_hat'])
-            # log_prob_full = -tf.square(x - x_pred)/2.0
-
-            # log_prob_full = -1 * tf.nn.sigmoid_cross_entropy_with_logits(labels=x, logits=x_logits)
-            # x_pred = tf.nn.sigmoid(x_logits)
+            log_prob_full = tf.concat([tf.expand_dims(log_sum_exp(tf.gather(log_prob_comp,
+                                                                  [i * 3 + j for i in range(args.k)],
+                                                                  axis=3)), axis=3)
+                                       for j in range(3)], axis=3)
 
             log_prob = tf.reduce_mean(
                 tf.reduce_sum(b * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist' else [3,2,1]))
+                              axis=[3,2,1]))
             imputation_log_prob = tf.reduce_mean(
                 tf.reduce_sum((1.0 - b) * log_prob_full,
-                              axis=[2,1] if args.dataset == 'mnist' else [3,2,1]))
+                              axis=[3,2,1]))
 
         return x_pred, log_prob, imputation_log_prob
 
