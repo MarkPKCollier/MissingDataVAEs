@@ -20,16 +20,22 @@ def str2bool(v):
 parser.add_argument('--run_id', type=int, default=1)
 parser.add_argument('--dataset', type=str, default='mnist',
                     help='binary_minst | mnist | cifar10 | svhn')
+parser.add_argument('--missingness_type', type=str, default='independent',
+                    help='independent (MCAR) | dependent (MNAR)')
+parser.add_argument('--missingness_complexity', type=str, default='simple',
+                    help='simple | complex')
 parser.add_argument('--marginal_ll_mc_samples', type=int, default=100)
 parser.add_argument('--batch_size', type=int, default=256)
 parser.add_argument('--save_imgs', type=str2bool, default=False)
 parser.add_argument('--likelihood', type=str, default='bernoulli',
-                    help='bernoulli | logistic_mixture')
+                    help='bernoulli | continuous_bernoulli | logistic_mixture')
 parser.add_argument('--k', type=int, default=3, help='number of logistic mixture components')
 
 args = parser.parse_args()
 
 if args.save_imgs:
+    import matplotlib
+    matplotlib.use('Agg')
     from matplotlib import pyplot as plt
 
 # see: https://arxiv.org/pdf/1202.2745.pdf for conv architectures
@@ -41,14 +47,17 @@ if 'mnist' in args.dataset:
     (x_train, y_train), (x_test, y_test) = data.load_data()
     y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
 
-    x_train = x_train/255.0
-    x_test = x_test/255.0
-
     if args.dataset == 'binary_mnist':
+        x_train = x_train/255.0
+        x_test = x_test/255.0
+
         x_train[x_train >= 0.5] = 1.0
         x_train[x_train < 0.5] = 0.0
         x_test[x_test >= 0.5] = 1.0
         x_test[x_test < 0.5] = 0.0
+    else:
+        x_train = x_train/255.0
+        x_test = x_test/255.0
 
     x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
                                                           train_size=50000,
@@ -56,20 +65,19 @@ if 'mnist' in args.dataset:
     
     z_dim = 50
     input_units = x_train.shape[1] * x_train.shape[2]
-    encoder_layers = [(20, 5, 2), (40, 5, 2), 250]
+    encoder_layers = [(20, 5, 2), (40, 5, 2)]
     encoder_shapes = [(28, 28, 1), (14, 14, 20), (7, 7, 40)]
     encoder_shapes_pre_pool = encoder_shapes
-    p_x_layers = [250,
-                  7*7*20,
+    p_x_layers = [7*7*20,
                   ([-1, 7, 7, 20], 40, 5, 2, tf.nn.relu),
                   (None, 20, 5, 2, tf.nn.relu)]
-    # p_x_b_z_layers = [(None, 10, 5, 1, tf.nn.relu),
-    #                   (None, 10, 5, 1, tf.nn.relu),
-    #                   (None, 3 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
-    #                   else (None, 1, 3, 1, None)]
-    p_x_b_z_layers = [(None, 10, 7, 1, tf.nn.relu),
-                      (None, 3 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
-                      else (None, 1, 5, 1, None)]
+    p_x_b_z_layers = [(None, 10, 5, 1, tf.nn.relu),
+                      (None, 10, 5, 1, tf.nn.relu),
+                      (None, 3 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
+                      else (None, 1, 3, 1, None)]
+    # p_x_b_z_layers = [(None, 10, 7, 1, tf.nn.relu),
+    #                   (None, 3 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
+    #                   else (None, 1, 5, 1, None)]
 elif 'svhn' in args.dataset:
     img_channels = 3
     train, test = chainer.datasets.get_svhn(withlabel=True, scale=255.0)
@@ -92,23 +100,22 @@ elif 'svhn' in args.dataset:
                                                           train_size=63257,
                                                           test_size=10000)
 
-    z_dim = 150
+    z_dim = 200
     input_units = x_train.shape[1] * x_train.shape[2]
-    encoder_layers = [(40, 3, 2), (60, 3, 2), (60, 5, 2), 300]
+    encoder_layers = [(40, 3, 2), (60, 3, 2), (60, 5, 2)]
     encoder_shapes = [(32, 32, 3), (16, 16, 40), (8, 8, 60), (4, 4, 60)]
     encoder_shapes_pre_pool = encoder_shapes
-    p_x_layers = [300,
-                  4*4*60,
+    p_x_layers = [4*4*60,
                   ([-1, 4, 4, 60], 60, 3, 2, tf.nn.relu),
                   (None, 60, 3, 2, tf.nn.relu),
                   (None, 40, 5, 2, tf.nn.relu)]
-    # p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
-    #                   (None, 30, 5, 1, tf.nn.relu),
-    #                   (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
-    #                   else (None, 3, 3, 1, None)]
-    p_x_b_z_layers = [(None, 30, 7, 1, tf.nn.relu),
-                      (None, 9 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
-                      else (None, 3, 5, 1, None)]
+    p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
+                      (None, 30, 5, 1, tf.nn.relu),
+                      (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
+                      else (None, 3, 3, 1, None)]
+    # p_x_b_z_layers = [(None, 30, 7, 1, tf.nn.relu),
+    #                   (None, 9 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
+    #                   else (None, 3, 5, 1, None)]
 elif args.dataset == 'cifar10':
     img_channels = 3
     data = tf.keras.datasets.cifar10
@@ -123,21 +130,36 @@ elif args.dataset == 'cifar10':
                                                           train_size=40000,
                                                           test_size=10000)
 
-    z_dim = 150
+
+    z_dim = 200
     input_units = x_train.shape[1] * x_train.shape[2]
-    encoder_layers = [(100, 3, 1), (100, 2, 1), (100, 3, 1), (100, 2, 1), 300]
-    encoder_shapes = [(32, 32, 3), (16, 16, 100), (8, 8, 100), (4, 4, 100), (2, 2, 100)]
-    encoder_shapes_pre_pool = [(32, 32, 3), (32, 32, 100), (16, 16, 100),
-                               (8, 8, 100), (4, 4, 100)]
-    p_x_layers = [2*2*100,
-                  ([-1, 2, 2, 100], 100, 2, 2, tf.nn.relu),
-                  (None, 100, 3, 2, tf.nn.relu),
-                  (None, 100, 2, 2, tf.nn.relu),
-                  (None, 100, 3, 2, tf.nn.relu)]
-    p_x_b_z_layers = [(None, 15, 3, 1, tf.nn.relu),
-                      (None, 5, 3, 1, tf.nn.relu),
+    encoder_layers = [(60, 3, 2), (80, 3, 2), (80, 5, 2)]
+    encoder_shapes = [(32, 32, 3), (16, 16, 60), (8, 8, 80), (4, 4, 80)]
+    encoder_shapes_pre_pool = encoder_shapes
+    p_x_layers = [4*4*80,
+                  ([-1, 4, 4, 80], 80, 3, 2, tf.nn.relu),
+                  (None, 80, 3, 2, tf.nn.relu),
+                  (None, 60, 5, 2, tf.nn.relu)]
+    p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
+                      (None, 30, 5, 1, tf.nn.relu),
                       (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
                       else (None, 3, 3, 1, None)]
+
+    # z_dim = 150
+    # input_units = x_train.shape[1] * x_train.shape[2]
+    # encoder_layers = [(100, 3, 1), (100, 2, 1), (100, 3, 1), (100, 2, 1), 300]
+    # encoder_shapes = [(32, 32, 3), (16, 16, 100), (8, 8, 100), (4, 4, 100), (2, 2, 100)]
+    # encoder_shapes_pre_pool = [(32, 32, 3), (32, 32, 100), (16, 16, 100),
+    #                            (8, 8, 100), (4, 4, 100)]
+    # p_x_layers = [2*2*100,
+    #               ([-1, 2, 2, 100], 100, 2, 2, tf.nn.relu),
+    #               (None, 100, 3, 2, tf.nn.relu),
+    #               (None, 100, 2, 2, tf.nn.relu),
+    #               (None, 100, 3, 2, tf.nn.relu)]
+    # p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
+    #                   (None, 30, 5, 1, tf.nn.relu),
+    #                   (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
+    #                   else (None, 3, 3, 1, None)]
 
 max_epochs = 400
 max_epochs_without_improvement = 12
@@ -269,6 +291,16 @@ def log_sum_exp(x):
     m2 = tf.reduce_max(x, axis, keepdims=True)
     return m + tf.log(tf.reduce_sum(tf.exp(x-m2), axis))
 
+def cont_bern_log_norm(lam, l_lim=0.49, u_lim=0.51):
+    """credit: https://github.com/gabloa/cont_bern
+    Computes the log normalizing constant of a continuous Bernoulli distribution in a numerically stable way.
+    Returns the log normalizing constant for lam in (0, l_lim) U (u_lim, 1)
+    and a Taylor approximation in [l_lim, u_lim]"""
+    cut_lam = tf.where(tf.logical_or(tf.less(lam, l_lim), tf.greater(lam, u_lim)), lam, l_lim * tf.ones_like(lam))
+    log_norm = tf.log(tf.abs(2.0 * tf.atanh(1 - 2.0 * cut_lam))) - tf.log(tf.abs(1 - 2.0 * cut_lam))
+    taylor = 4.0/3.0 * tf.pow(lam - 0.5, 2) + 104.0/45.0 * tf.pow(lam - 0.5, 4)
+    return tf.where(tf.logical_or(tf.less(lam, l_lim), tf.greater(lam, u_lim)), log_norm, taylor)
+
 def model(features, labels, mode, params):
     if 'mnist' in args.dataset:
         x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
@@ -306,7 +338,7 @@ def model(features, labels, mode, params):
                                                   b=b if '_decoder_b' in params['model_type'] else None)
         if args.dataset == 'mnist':
             x_logits = tf.squeeze(x_logits, axis=-1)
-        if args.likelihood == 'bernoulli':
+        if 'bernoulli' in args.likelihood:
             x_pred = tf.nn.sigmoid(x_logits)
         if args.likelihood == 'logistic_mixture':
             scale = [tf.exp(scale_logit[i]) + 1e-2
@@ -322,10 +354,13 @@ def model(features, labels, mode, params):
                 x_pred = tf.concat([tf.expand_dims(tf.reduce_sum(pi[i] * x_logits[i], axis=3), axis=3)
                                     for i in range(img_channels)], axis=3)
 
-        if args.likelihood == 'bernoulli':
+        if 'bernoulli' in args.likelihood:
             # valid for even real valued MNIST: http://ruishu.io/2018/03/19/bernoulli-vae/
-            # log_prob_full = tf.distributions.Bernoulli(logits=x_logits).log_prob(x)
             log_prob_full = -1 * tf.nn.sigmoid_cross_entropy_with_logits(labels=x, logits=x_logits)
+            if args.likelihood == 'continuous_bernoulli':
+                # log_prob_full += cont_bern_log_norm(tf.clip_by_value(x_pred, 1e-2, 1.0 - 1e-2))
+                log_prob_full += cont_bern_log_norm(x_pred)
+                
             log_prob = tf.reduce_mean(tf.reduce_sum(b * log_prob_full,
                                                     axis=[2,1] if 'mnist' in args.dataset else [3,2,1]))
             imputation_log_prob = tf.reduce_mean(tf.reduce_sum((1.0 - b) * log_prob_full,
@@ -429,327 +464,250 @@ def model(features, labels, mode, params):
             global_step=tf.train.get_global_step())
     return tf.estimator.EstimatorSpec(mode, loss=loss, train_op=train_op)
 
-# for missingness_type in ['dependent', 'independent']:
-for missingness_type in ['independent']:
-# for missingness_type in ['dependent']:
-    if missingness_type == 'independent':
-        b_train = np.ones_like(x_train)
-        b_valid = np.ones_like(x_valid)
-        b_test = np.ones_like(x_test)
-        for b in range(x_train.shape[0]):
-            for _ in range(num_missing_blocks):
-                x = np.random.choice(img_dim)
-                y = np.random.choice(img_dim)
-                if 'mnist' in args.dataset:
-                    b_train[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_train[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
-        for b in range(x_valid.shape[0]):
-            for _ in range(num_missing_blocks):
-                x = np.random.choice(img_dim)
-                y = np.random.choice(img_dim)
-                if 'mnist' in args.dataset:
-                    b_valid[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_valid[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
-        for b in range(x_test.shape[0]):
-            for _ in range(num_missing_blocks):
-                x = np.random.choice(img_dim)
-                y = np.random.choice(img_dim)
-                if 'mnist' in args.dataset:
-                    b_test[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_test[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
 
-    elif missingness_type == 'dependent':
-        mnar_quadrants = [[0, 1], [0, 2], [0, 3], [1, 2], [1, 3], [2, 3],
-                          [0], [1], [2], [3]]
-        mnar_quadrants = np.random.permutation(mnar_quadrants).tolist()
+if args.missingness_type == 'independent' and args.missingness_complexity == 'simple':
+    b_train = np.ones_like(x_train)
+    b_valid = np.ones_like(x_valid)
+    b_test = np.ones_like(x_test)
+    for b in range(x_train.shape[0]):
+        for _ in range(num_missing_blocks):
+            x = np.random.choice(img_dim)
+            y = np.random.choice(img_dim)
+            if 'mnist' in args.dataset:
+                b_train[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_train[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                        :] = 0.0
+    for b in range(x_valid.shape[0]):
+        for _ in range(num_missing_blocks):
+            x = np.random.choice(img_dim)
+            y = np.random.choice(img_dim)
+            if 'mnist' in args.dataset:
+                b_valid[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_valid[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                        :] = 0.0
+    for b in range(x_test.shape[0]):
+        for _ in range(num_missing_blocks):
+            x = np.random.choice(img_dim)
+            y = np.random.choice(img_dim)
+            if 'mnist' in args.dataset:
+                b_test[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_test[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                        :] = 0.0
 
-        def quad(x, y):
-            if x < (img_dim/2) and y < (img_dim/2):
-                return 0
-            elif x > (img_dim/2) and y < (img_dim/2):
-                return 1
-            elif x < (img_dim/2) and y > (img_dim/2):
-                return 2
-            else:
-                return 3
+elif args.missingness_type == 'dependent' or args.missingness_complexity == 'complex':
+    if 'mnist' in args.dataset:
+        mnar_blocks = [[5, 10], [5, 12], [7, 5], [7, 6], [9, 3], [9, 4],
+                       [11, 2], [11, 3], [13, 1], [15, 1]]
+    else:
+        mnar_blocks = [[5, 12], [7, 5], [7, 6], [9, 3], [9, 4],
+                       [11, 2], [11, 3], [13, 2], [15, 1], [17, 1]]
+    if args.missingness_type == 'dependent':
+        mnar_blocks = np.random.permutation(mnar_blocks).tolist()
 
-        b_train = np.ones_like(x_train)
-        b_valid = np.ones_like(x_valid)
-        b_test = np.ones_like(x_test)
-        for b in range(x_train.shape[0]):
-            quads = mnar_quadrants[int(y_train[b])]
-            for _ in range(num_missing_blocks):
-                accepted = False
-                while not accepted:
-                    x = np.random.choice(img_dim)
-                    y = np.random.choice(img_dim)
-                    accepted = quad(x, y) in quads
-
-                if 'mnist' in args.dataset:
-                    b_train[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_train[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
-        for b in range(x_valid.shape[0]):
-            quads = mnar_quadrants[int(y_valid[b])]
-            for _ in range(num_missing_blocks):
-                accepted = False
-                while not accepted:
-                    x = np.random.choice(img_dim)
-                    y = np.random.choice(img_dim)
-                    accepted = quad(x, y) in quads
-
-                if 'mnist' in args.dataset:
-                    b_valid[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_valid[b,
-                            max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                            max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
-        for b in range(x_test.shape[0]):
-            quads = mnar_quadrants[int(y_test[b])]
-            for _ in range(num_missing_blocks):
-                accepted = False
-                while not accepted:
-                    x = np.random.choice(img_dim)
-                    y = np.random.choice(img_dim)
-                    accepted = quad(x, y) in quads
-
-                if 'mnist' in args.dataset:
-                    b_test[b,
-                           max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                           max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-                elif args.dataset in ('cifar10', 'svhn'):
-                    b_test[b,
-                           max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
-                           max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
-                            :] = 0.0
-
-    print 'Train fraction of pixels missing:', 1.0 - np.sum(b_train)/np.sum(np.ones_like(b_train))
-    print 'Valid fraction of pixels missing:', 1.0 - np.sum(b_valid)/np.sum(np.ones_like(b_valid))
-    print 'Test fraction of pixels missing:', 1.0 - np.sum(b_test)/np.sum(np.ones_like(b_test))
-
-    mu_hat = np.true_divide(np.sum(b_train * x_train, axis=0), np.sum(b_train, axis=0))
-    sigma_hat = np.true_divide(np.sum(b_train * (x_train - mu_hat)**2, axis=0), np.sum(b_train, axis=0))
-    sigma_hat = np.clip(sigma_hat, np.mean(sigma_hat)/10.0, np.percentile(sigma_hat, 95))
-    print 'Average pixel intensity:', np.mean(mu_hat)
-    print 'Average pixel variance:', np.mean(sigma_hat)
-    
-    for model_type, title in [('VAE', 'Zero imputation'),
-                       ('VAE_mean_imp', 'Mean imputation'),
-                       ('VAE_ind', 'Zero imputation w/ indicator variables'),
-                       ('VAE_ind_decoder_b', 'Zero imputation w/ encoder + decoder indicator variables')]:
-    # for model_type, title in [('VAE_ind_decoder_b', 'Zero imputation w/ encoder + decoder indicator variables')]:
-        if '_mean_imp' in model_type:
-            x_train_input = b_train * x_train + (1.0 - b_train) * mu_hat
-            x_valid_input = b_valid * x_valid + (1.0 - b_valid) * mu_hat
-            x_test_input = b_test * x_test + (1.0 - b_test) * mu_hat
+    b_train = np.ones_like(x_train)
+    b_valid = np.ones_like(x_valid)
+    b_test = np.ones_like(x_test)
+    for b in range(x_train.shape[0]):
+        if args.missingness_type == 'dependent':
+            missingness_block_size, num_missing_blocks = mnar_blocks[int(y_train[b])]
         else:
-            x_train_input = b_train * x_train
-            x_valid_input = b_valid * x_valid
-            x_test_input = b_test * x_test
+            missingness_block_size, num_missing_blocks = mnar_blocks[np.random.choice(len(mnar_blocks))]
+        
+        for _ in range(num_missing_blocks):
+            x = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            y = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            if 'mnist' in args.dataset:
+                b_train[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_train[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                        :] = 0.0
+    for b in range(x_valid.shape[0]):
+        if args.missingness_type == 'dependent':
+            missingness_block_size, num_missing_blocks = mnar_blocks[int(y_valid[b])]
+        else:
+            missingness_block_size, num_missing_blocks = mnar_blocks[np.random.choice(len(mnar_blocks))]
+        
+        for _ in range(num_missing_blocks):
+            x = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            y = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            if 'mnist' in args.dataset:
+                b_valid[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_valid[b,
+                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                        :] = 0.0
+    for b in range(x_test.shape[0]):
+        if args.missingness_type == 'dependent':
+            missingness_block_size, num_missing_blocks = mnar_blocks[int(y_test[b])]
+        else:
+            missingness_block_size, num_missing_blocks = mnar_blocks[np.random.choice(len(mnar_blocks))]
+
+        for _ in range(num_missing_blocks):
+            x = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            y = missingness_block_size/2 + np.random.choice(img_dim - missingness_block_size)
+            if 'mnist' in args.dataset:
+                b_test[b,
+                       max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                       max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
+            elif args.dataset in ('cifar10', 'svhn'):
+                b_test[b,
+                       max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
+                       max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
+                       :] = 0.0
+
+print 'Train fraction of pixels missing:', 1.0 - np.sum(b_train)/np.sum(np.ones_like(b_train))
+print 'Valid fraction of pixels missing:', 1.0 - np.sum(b_valid)/np.sum(np.ones_like(b_valid))
+print 'Test fraction of pixels missing:', 1.0 - np.sum(b_test)/np.sum(np.ones_like(b_test))
+
+mu_hat = np.true_divide(np.sum(b_train * x_train, axis=0), np.sum(b_train, axis=0))
+sigma_hat = np.true_divide(np.sum(b_train * (x_train - mu_hat)**2, axis=0), np.sum(b_train, axis=0))
+sigma_hat = np.clip(sigma_hat, np.mean(sigma_hat)/10.0, np.percentile(sigma_hat, 95))
+print 'Average pixel intensity:', np.mean(mu_hat)
+print 'Average pixel variance:', np.mean(sigma_hat)
+
+for model_type, title in [('VAE', 'Zero imputation'),
+                   ('VAE_mean_imp', 'Mean imputation'),
+                   ('VAE_ind', 'Zero imputation w/ encoder indicator variables'),
+                   ('VAE_ind_decoder_b', 'Zero imputation w/ encoder + decoder indicator variables')]:
+# for model_type, title in [('VAE_ind_decoder_b', 'Zero imputation w/ encoder + decoder indicator variables')]:
+    if '_mean_imp' in model_type:
+        x_train_input = b_train * x_train + (1.0 - b_train) * mu_hat
+        x_valid_input = b_valid * x_valid + (1.0 - b_valid) * mu_hat
+        x_test_input = b_test * x_test + (1.0 - b_test) * mu_hat
+    else:
+        x_train_input = b_train * x_train
+        x_valid_input = b_valid * x_valid
+        x_test_input = b_test * x_test
+
+    if args.save_imgs and 'mnist' in args.dataset:
+        def draw_digit(data, row, col, n):
+            size = 28
+            plt.subplot(row, col, n)
+            plt.imshow(data)
+            plt.gray()
+            plt.axis('off')
+
+        show_size = 10
+        total = 0
+        fig = plt.figure(figsize=(20,20), dpi=30)
+        for i in range(show_size):
+            for j in range(show_size):
+                if i % 2 == 0:
+                    draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
+                else:
+                    draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
+
+                total += 1
+        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
+        plt.savefig('{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
+                                                 args.missingness_complexity),
+                    bbox_inches='tight')
+        plt.close()
+    elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
+        def draw_digit(data, row, col, n):
+            size = 32
+            plt.subplot(row, col, n)
+            plt.imshow(data)
+            plt.axis('off')
+
+        show_size = 10
+        total = 0
+        fig = plt.figure(figsize=(20,20), dpi=30)
+        for i in range(show_size):
+            for j in range(show_size):
+                if i % 2 == 0:
+                    draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
+                else:
+                    draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
+
+                total += 1
+        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
+        plt.savefig('{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
+                                                 args.missingness_complexity),
+                    bbox_inches='tight')
+        plt.close()
+
+    feature_columns = [tf.feature_column.numeric_column(key='x', shape=[img_dim, img_dim]),
+                       tf.feature_column.numeric_column(key='x_input', shape=[img_dim, img_dim]),
+                       tf.feature_column.numeric_column(key='b', shape=[img_dim, img_dim]),
+                       tf.feature_column.numeric_column(key='multiple_mc_samples', shape=[])]
+
+    model_dir = '{0}_conv_{1}_{2}_{3}'.format(args.dataset, model_type,
+                                              args.missingness_type, args.run_id)
+    vae = tf.estimator.Estimator(
+        model_fn=model,
+        model_dir=model_dir,
+        params={'feature_columns': feature_columns,
+                'model_type': model_type,
+                'sigma_hat': sigma_hat.astype(np.float32)},
+        config=tf.estimator.RunConfig(
+            save_summary_steps=100000,
+            save_checkpoints_steps=100000,
+            keep_checkpoint_max=2*max_epochs_without_improvement + 5,
+            log_step_count_steps=100000))
+    
+    train_input_fn = tf.estimator.inputs.numpy_input_fn(
+        {'x': x_train if 'mnist' in args.dataset else 2.0 * x_train - 1.0,
+         'x_input': x_train_input if 'mnist' in args.dataset else 2.0 * x_train_input - 1.0,
+         'b': b_train,
+         'multiple_mc_samples': np.zeros(x_train.shape[0])},
+        shuffle=True, batch_size=args.batch_size)
+
+    valid_input_fn = tf.estimator.inputs.numpy_input_fn(
+        {'x': x_valid if 'mnist' in args.dataset else 2.0 * x_valid - 1.0,
+         'x_input': x_valid_input if 'mnist' in args.dataset else 2.0 * x_valid_input - 1.0,
+         'b': b_valid,
+         'multiple_mc_samples': np.ones(x_valid.shape[0])},
+        shuffle=False, batch_size=args.batch_size)
+    
+    test_input_fn = tf.estimator.inputs.numpy_input_fn(
+        {'x': x_test if 'mnist' in args.dataset else 2.0 * x_test - 1.0,
+         'x_input': x_test_input if 'mnist' in args.dataset else 2.0 * x_test_input - 1.0,
+         'b': b_test,
+         'multiple_mc_samples': np.ones(x_test.shape[0])},
+        shuffle=False, batch_size=args.batch_size)
+
+    image_plot_input_fn = tf.estimator.inputs.numpy_input_fn(
+        {'x': x_test[:30] if 'mnist' in args.dataset else 2.0 * x_test[:30] - 1.0,
+         'x_input': x_test_input[:30] if 'mnist' in args.dataset else 2.0 * x_test_input[:30] - 1.0,
+         'b': b_test[:30],
+         'multiple_mc_samples': np.ones(x_test[:30].shape[0])},
+        shuffle=False, batch_size=args.batch_size)
+
+    best_valid_eval = None
+    best_checkpoint = None
+    best_estimator = None
+    epochs_since_improvement = 0
+    for i in range(max_epochs):
+        vae.train(steps=None, input_fn=train_input_fn)
+
+        eval_result = vae.evaluate(input_fn=valid_input_fn)
+        logging.info('End of epoch evaluation (valid set): ' + str(eval_result))
 
         if args.save_imgs and 'mnist' in args.dataset:
-            def draw_digit(data, row, col, n):
-                size = 28
-                plt.subplot(row, col, n)
-                plt.imshow(data)
-                plt.gray()
-                plt.axis('off')
-
-            show_size = 10
-            total = 0
-            fig = plt.figure(figsize=(20,20), dpi=30)
-            for i in range(show_size):
-                for j in range(show_size):
-                    if i % 2 == 0:
-                        draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
-                    else:
-                        draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
-
-                    total += 1
-            fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
-                        bbox_inches='tight')
-            plt.close()
-        elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-            def draw_digit(data, row, col, n):
-                size = 32
-                plt.subplot(row, col, n)
-                plt.imshow(data)
-                plt.axis('off')
-
-            show_size = 10
-            total = 0
-            fig = plt.figure(figsize=(20,20), dpi=30)
-            for i in range(show_size):
-                for j in range(show_size):
-                    if i % 2 == 0:
-                        draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
-                    else:
-                        draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
-
-                    total += 1
-            fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
-                        bbox_inches='tight')
-            plt.close()
-
-        feature_columns = [tf.feature_column.numeric_column(key='x', shape=[img_dim, img_dim]),
-                           tf.feature_column.numeric_column(key='x_input', shape=[img_dim, img_dim]),
-                           tf.feature_column.numeric_column(key='b', shape=[img_dim, img_dim]),
-                           tf.feature_column.numeric_column(key='multiple_mc_samples', shape=[])]
-
-        model_dir = '{0}_conv_{1}_{2}_{3}'.format(args.dataset, model_type,
-                                                  missingness_type, args.run_id)
-        vae = tf.estimator.Estimator(
-            model_fn=model,
-            model_dir=model_dir,
-            params={'feature_columns': feature_columns,
-                    'model_type': model_type,
-                    'sigma_hat': sigma_hat.astype(np.float32)},
-            config=tf.estimator.RunConfig(
-                save_summary_steps=100000,
-                save_checkpoints_steps=100000,
-                keep_checkpoint_max=2*max_epochs_without_improvement + 5,
-                log_step_count_steps=100000))
-        
-        train_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_train if 'mnist' in args.dataset else 2.0 * x_train - 1.0,
-             'x_input': x_train_input if 'mnist' in args.dataset else 2.0 * x_train_input - 1.0,
-             'b': b_train,
-             'multiple_mc_samples': np.zeros(x_train.shape[0])},
-            shuffle=True, batch_size=args.batch_size)
-
-        valid_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_valid if 'mnist' in args.dataset else 2.0 * x_valid - 1.0,
-             'x_input': x_valid_input if 'mnist' in args.dataset else 2.0 * x_valid_input - 1.0,
-             'b': b_valid,
-             'multiple_mc_samples': np.ones(x_valid.shape[0])},
-            shuffle=False, batch_size=args.batch_size)
-        
-        test_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_test if 'mnist' in args.dataset else 2.0 * x_test - 1.0,
-             'x_input': x_test_input if 'mnist' in args.dataset else 2.0 * x_test_input - 1.0,
-             'b': b_test,
-             'multiple_mc_samples': np.ones(x_test.shape[0])},
-            shuffle=False, batch_size=args.batch_size)
-
-        image_plot_input_fn = tf.estimator.inputs.numpy_input_fn(
-            {'x': x_test[:30] if 'mnist' in args.dataset else 2.0 * x_test[:30] - 1.0,
-             'x_input': x_test_input[:30] if 'mnist' in args.dataset else 2.0 * x_test_input[:30] - 1.0,
-             'b': b_test[:30],
-             'multiple_mc_samples': np.ones(x_test[:30].shape[0])},
-            shuffle=False, batch_size=args.batch_size)
-
-        best_valid_eval = None
-        best_checkpoint = None
-        best_estimator = None
-        epochs_since_improvement = 0
-        for i in range(max_epochs):
-            vae.train(steps=None, input_fn=train_input_fn)
-
-            eval_result = vae.evaluate(input_fn=valid_input_fn)
-            logging.info('End of epoch evaluation (valid set): ' + str(eval_result))
-
-            if args.save_imgs and 'mnist' in args.dataset:
-                recons = vae.predict(image_plot_input_fn)
-                images = [res['x'] for res in recons]
-
-                def draw_digit(data, row, col, n):
-                    size = 28
-                    plt.subplot(row, col, n)
-                    plt.imshow(data)
-                    plt.gray()
-                    plt.axis('off')
-
-                show_size = 9
-                total = 0
-                fig = plt.figure(figsize=(20,20), dpi=30)
-                for i in range(show_size):
-                    for j in range(show_size):
-                        if i % 3 == 0:
-                            draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                        elif i % 3 == 1:
-                            draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                        else:
-                            draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                        total += 1
-                fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-                plt.savefig('recon_{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
-                            bbox_inches='tight')
-                plt.close()
-            elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-                recons = vae.predict(image_plot_input_fn)
-                images = [res['x'] for res in recons]
-                
-                def draw_digit(data, row, col, n):
-                    size = 32
-                    plt.subplot(row, col, n)
-                    plt.imshow(data)
-                    plt.axis('off')
-
-                show_size = 9
-                total = 0
-                fig = plt.figure(figsize=(20,20), dpi=30)
-                for i in range(show_size):
-                    for j in range(show_size):
-                        if i % 3 == 0:
-                            draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                        elif i % 3 == 1:
-                            draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                        else:
-                            draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                        total += 1
-                fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-                plt.savefig('recon_{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
-                            bbox_inches='tight')
-                plt.close()
-
-            if best_valid_eval is None or eval_result['log_prob_x'] > best_valid_eval:
-                best_checkpoint = vae.latest_checkpoint()
-                best_valid_eval = eval_result['log_prob_x']
-                epochs_since_improvement = 0
-            else:
-                epochs_since_improvement += 1
-                if epochs_since_improvement >= max_epochs_without_improvement:
-                    break
-
-        ### missing data imputation evaluation
-        
-        eval_result = vae.evaluate(
-            input_fn=test_input_fn,
-            checkpoint_path=best_checkpoint)
-        logging.info('Test set evaluation: {0}'.format(eval_result))
-
-        if args.save_imgs and 'mnist' in args.dataset:
-            recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
+            recons = vae.predict(image_plot_input_fn)
             images = [res['x'] for res in recons]
 
             def draw_digit(data, row, col, n):
@@ -761,7 +719,7 @@ for missingness_type in ['independent']:
 
             show_size = 9
             total = 0
-            fig = plt.figure(figsize=(20, 20), dpi=30)
+            fig = plt.figure(figsize=(20,20), dpi=30)
             for i in range(show_size):
                 for j in range(show_size):
                     if i % 3 == 0:
@@ -773,11 +731,12 @@ for missingness_type in ['independent']:
 
                     total += 1
             fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('recon_{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
+            plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type, 
+                                                           args.missingness_complexity),
                         bbox_inches='tight')
             plt.close()
         elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-            recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
+            recons = vae.predict(image_plot_input_fn)
             images = [res['x'] for res in recons]
             
             def draw_digit(data, row, col, n):
@@ -788,7 +747,7 @@ for missingness_type in ['independent']:
 
             show_size = 9
             total = 0
-            fig = plt.figure(figsize=(20, 20), dpi=30)
+            fig = plt.figure(figsize=(20,20), dpi=30)
             for i in range(show_size):
                 for j in range(show_size):
                     if i % 3 == 0:
@@ -800,8 +759,83 @@ for missingness_type in ['independent']:
 
                     total += 1
             fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('recon_{0}_{1}_{2}.png'.format(args.dataset, model_type, missingness_type),
+            plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
+                                                           args.missingness_complexity),
                         bbox_inches='tight')
             plt.close()
 
-        shutil.rmtree(model_dir, ignore_errors=True)
+        if best_valid_eval is None or eval_result['log_prob_x'] > best_valid_eval:
+            best_checkpoint = vae.latest_checkpoint()
+            best_valid_eval = eval_result['log_prob_x']
+            epochs_since_improvement = 0
+        else:
+            epochs_since_improvement += 1
+            if epochs_since_improvement >= max_epochs_without_improvement:
+                break
+
+    ### missing data imputation evaluation
+    
+    eval_result = vae.evaluate(
+        input_fn=test_input_fn,
+        checkpoint_path=best_checkpoint)
+    logging.info('Test set evaluation: {0}'.format(eval_result))
+
+    if args.save_imgs and 'mnist' in args.dataset:
+        recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
+        images = [res['x'] for res in recons]
+
+        def draw_digit(data, row, col, n):
+            size = 28
+            plt.subplot(row, col, n)
+            plt.imshow(data)
+            plt.gray()
+            plt.axis('off')
+
+        show_size = 9
+        total = 0
+        fig = plt.figure(figsize=(20, 20), dpi=30)
+        for i in range(show_size):
+            for j in range(show_size):
+                if i % 3 == 0:
+                    draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
+                elif i % 3 == 1:
+                    draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
+                else:
+                    draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
+
+                total += 1
+        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
+        plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
+                                                       args.missingness_complexity),
+                    bbox_inches='tight')
+        plt.close()
+    elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
+        recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
+        images = [res['x'] for res in recons]
+        
+        def draw_digit(data, row, col, n):
+            size = 32
+            plt.subplot(row, col, n)
+            plt.imshow(data)
+            plt.axis('off')
+
+        show_size = 9
+        total = 0
+        fig = plt.figure(figsize=(20, 20), dpi=30)
+        for i in range(show_size):
+            for j in range(show_size):
+                if i % 3 == 0:
+                    draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
+                elif i % 3 == 1:
+                    draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
+                else:
+                    draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
+
+                total += 1
+        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
+        plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
+                                                       args.missingness_complexity),
+                    bbox_inches='tight')
+        plt.close()
+
+    shutil.rmtree(model_dir, ignore_errors=True)
