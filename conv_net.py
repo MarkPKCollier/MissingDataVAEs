@@ -75,9 +75,6 @@ if 'mnist' in args.dataset:
                       (None, 10, 5, 1, tf.nn.relu),
                       (None, 3 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
                       else (None, 1, 3, 1, None)]
-    # p_x_b_z_layers = [(None, 10, 7, 1, tf.nn.relu),
-    #                   (None, 3 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
-    #                   else (None, 1, 5, 1, None)]
 elif 'svhn' in args.dataset:
     img_channels = 3
     train, test = chainer.datasets.get_svhn(withlabel=True, scale=255.0)
@@ -113,9 +110,6 @@ elif 'svhn' in args.dataset:
                       (None, 30, 5, 1, tf.nn.relu),
                       (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
                       else (None, 3, 3, 1, None)]
-    # p_x_b_z_layers = [(None, 30, 7, 1, tf.nn.relu),
-    #                   (None, 9 * args.k, 5, 1, None) if args.likelihood == 'logistic_mixture'
-    #                   else (None, 3, 5, 1, None)]
 elif args.dataset == 'cifar10':
     img_channels = 3
     data = tf.keras.datasets.cifar10
@@ -130,7 +124,6 @@ elif args.dataset == 'cifar10':
                                                           train_size=40000,
                                                           test_size=10000)
 
-
     z_dim = 200
     input_units = x_train.shape[1] * x_train.shape[2]
     encoder_layers = [(60, 3, 2), (80, 3, 2), (80, 5, 2)]
@@ -144,22 +137,6 @@ elif args.dataset == 'cifar10':
                       (None, 30, 5, 1, tf.nn.relu),
                       (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
                       else (None, 3, 3, 1, None)]
-
-    # z_dim = 150
-    # input_units = x_train.shape[1] * x_train.shape[2]
-    # encoder_layers = [(100, 3, 1), (100, 2, 1), (100, 3, 1), (100, 2, 1), 300]
-    # encoder_shapes = [(32, 32, 3), (16, 16, 100), (8, 8, 100), (4, 4, 100), (2, 2, 100)]
-    # encoder_shapes_pre_pool = [(32, 32, 3), (32, 32, 100), (16, 16, 100),
-    #                            (8, 8, 100), (4, 4, 100)]
-    # p_x_layers = [2*2*100,
-    #               ([-1, 2, 2, 100], 100, 2, 2, tf.nn.relu),
-    #               (None, 100, 3, 2, tf.nn.relu),
-    #               (None, 100, 2, 2, tf.nn.relu),
-    #               (None, 100, 3, 2, tf.nn.relu)]
-    # p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
-    #                   (None, 30, 5, 1, tf.nn.relu),
-    #                   (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
-    #                   else (None, 3, 3, 1, None)]
 
 max_epochs = 400
 max_epochs_without_improvement = 12
@@ -660,8 +637,7 @@ for model_type, title in [('VAE', 'Zero imputation'),
         model_fn=model,
         model_dir=model_dir,
         params={'feature_columns': feature_columns,
-                'model_type': model_type,
-                'sigma_hat': sigma_hat.astype(np.float32)},
+                'model_type': model_type},
         config=tf.estimator.RunConfig(
             save_summary_steps=100000,
             save_checkpoints_steps=100000,

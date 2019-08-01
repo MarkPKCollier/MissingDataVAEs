@@ -25,3 +25,26 @@ INFO:root:Test set evaluation: {'loss': 61.03361, 'global_step': 10976, 'imputat
 INFO:root:Test set evaluation: {'loss': 61.11985, 'global_step': 10584, 'imputation_mse': 8.749518, 'mse_x': 4.026213, 'elbo': -61.11985, 'kl': 18.970844, 'log_prob_x': -42.149, 'imputation_log_prob': -45.796387}
 
 
+INFO:root:Test set evaluation: {'loss': 62.233337, 'global_step': 10976, 'imputation_mse': 10.540543, 'mse_x': 4.5009236, 'elbo': -62.233337, 'kl': 18.855318, 'log_prob_x': -43.37803, 'imputation_log_prob': -56.193153}
+INFO:root:Test set evaluation: {'loss': 61.389576, 'global_step': 15288, 'imputation_mse': 9.386514, 'mse_x': 4.244666, 'elbo': -61.389576, 'kl': 18.735332, 'log_prob_x': -42.65425, 'imputation_log_prob': -49.22912}
+INFO:root:Test set evaluation: {'loss': 60.963177, 'global_step': 9604, 'imputation_mse': 9.119185, 'mse_x': 4.120719, 'elbo': -60.963177, 'kl': 18.755249, 'log_prob_x': -42.207935, 'imputation_log_prob': -48.65353}
+INFO:root:Test set evaluation: {'loss': 60.713024, 'global_step': 12936, 'imputation_mse': 9.174105, 'mse_x': 4.066031, 'elbo': -60.713024, 'kl': 18.564005, 'log_prob_x': -42.149017, 'imputation_log_prob': -47.95104}
+
+
+INFO:root:Test set evaluation: {'loss': 62.285442, 'global_step': 13132, 'imputation_mse': 10.190889, 'mse_x': 4.4249196, 'elbo': -62.285442, 'kl': 19.066702, 'log_prob_x': -43.218746, 'imputation_log_prob': -54.373943}
+INFO:root:Test set evaluation: {'loss': 61.34046, 'global_step': 14112, 'imputation_mse': 9.5022335, 'mse_x': 4.363925, 'elbo': -61.34046, 'kl': 18.2039, 'log_prob_x': -43.13656, 'imputation_log_prob': -49.634132}
+INFO:root:Test set evaluation: {'loss': 61.603436, 'global_step': 14700, 'imputation_mse': 8.841764, 'mse_x': 4.160857, 'elbo': -61.603436, 'kl': 19.376879, 'log_prob_x': -42.226555, 'imputation_log_prob': -48.20327}
+INFO:root:Test set evaluation: {'loss': 60.84726, 'global_step': 10192, 'imputation_mse': 9.220171, 'mse_x': 4.228856, 'elbo': -60.84726, 'kl': 18.348568, 'log_prob_x': -42.4987, 'imputation_log_prob': -48.02407}
+
+
+INFO:root:Test set evaluation: {'loss': 62.268147, 'global_step': 9800, 'imputation_mse': 10.789547, 'mse_x': 4.4392323, 'elbo': -62.268147, 'kl': 19.12433, 'log_prob_x': -43.143806, 'imputation_log_prob': -56.904785}
+INFO:root:Test set evaluation: {'loss': 61.185036, 'global_step': 10192, 'imputation_mse': 9.743648, 'mse_x': 4.3711047, 'elbo': -61.185036, 'kl': 18.125378, 'log_prob_x': -43.05965, 'imputation_log_prob': -50.29966}
+INFO:root:Test set evaluation: {'loss': 60.311382, 'global_step': 9408, 'imputation_mse': 9.195733, 'mse_x': 4.165126, 'elbo': -60.311382, 'kl': 18.085781, 'log_prob_x': -42.22561, 'imputation_log_prob': -49.010933}
+INFO:root:Test set evaluation: {'loss': 60.82959, 'global_step': 12152, 'imputation_mse': 9.265219, 'mse_x': 4.076337, 'elbo': -60.82959, 'kl': 18.800037, 'log_prob_x': -42.029537, 'imputation_log_prob': -49.138664}
+
+
+INFO:root:Test set evaluation: {'loss': 62.623726, 'global_step': 12740, 'imputation_mse': 10.56852, 'mse_x': 4.5404997, 'elbo': -62.623726, 'kl': 19.123236, 'log_prob_x': -43.500492, 'imputation_log_prob': -56.2795}
+INFO:root:Test set evaluation: {'loss': 61.550545, 'global_step': 14504, 'imputation_mse': 9.622629, 'mse_x': 4.35863, 'elbo': -61.550545, 'kl': 18.476122, 'log_prob_x': -43.07443, 'imputation_log_prob': -50.110012}
+INFO:root:Test set evaluation: {'loss': 60.795635, 'global_step': 9604, 'imputation_mse': 9.202208, 'mse_x': 4.1536064, 'elbo': -60.795635, 'kl': 18.492147, 'log_prob_x': -42.30349, 'imputation_log_prob': -49.289394}
+INFO:root:Test set evaluation: {'loss': 61.04241, 'global_step': 13720, 'imputation_mse': 8.944256, 'mse_x': 4.0300064, 'elbo': -61.04241, 'kl': 19.148338, 'log_prob_x': -41.89406, 'imputation_log_prob': -47.525234}
+
