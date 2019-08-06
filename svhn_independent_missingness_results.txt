@@ -138,4 +138,9 @@ I0729 01:59:23.681138 139758052050688 conv_net.py:762] Test set evaluation: {'lo
 I0729 11:45:41.973364 139758052050688 conv_net.py:762] Test set evaluation: {'loss': 7674.3584, 'global_step': 17856, 'imputation_mse': 29.713326, 'mse_x': 6.8623824, 'elbo': -7674.3584, 'kl': 381.0506, 'log_prob_x': -7293.3096, 'imputation_log_prob': -4138.576}
 I0730 12:36:36.893779 139758052050688 conv_net.py:762] Test set evaluation: {'loss': 6682.0015, 'global_step': 47368, 'imputation_mse': 33.070454, 'mse_x': 2.5541675, 'elbo': -6682.0015, 'kl': 573.042, 'log_prob_x': -6108.9595, 'imputation_log_prob': -2944.5256}
 
+I0803 15:33:58.163234 140163716900608 conv_net.py:762] Test set evaluation: {'loss': 6634.3384, 'global_step': 49104, 'imputation_mse': 13.002516, 'mse_x': 3.5267837, 'elbo': -6634.3384, 'kl': 477.9053, 'log_prob_x': -6156.432, 'imputation_log_prob': -3934.135}
+I0804 05:45:48.054460 140163716900608 conv_net.py:762] Test set evaluation: {'loss': 7384.1396, 'global_step': 27280, 'imputation_mse': 14.9243765, 'mse_x': 7.635321, 'elbo': -7384.1396, 'kl': 355.99863, 'log_prob_x': -7028.1416, 'imputation_log_prob': -3587.1504}
+I0805 07:52:44.965687 140163716900608 conv_net.py:762] Test set evaluation: {'loss': 6435.772, 'global_step': 52576, 'imputation_mse': 12.653228, 'mse_x': 2.6882443, 'elbo': -6435.772, 'kl': 538.1174, 'log_prob_x': -5897.655, 'imputation_log_prob': -4133.987}
+I0805 22:45:42.415719 140163716900608 conv_net.py:762] Test set evaluation: {'loss': 6759.187, 'global_step': 27032, 'imputation_mse': 12.139633, 'mse_x': 3.7443511, 'elbo': -6759.187, 'kl': 471.3633, 'log_prob_x': -6287.8237, 'imputation_log_prob': -3033.7595}
+
 

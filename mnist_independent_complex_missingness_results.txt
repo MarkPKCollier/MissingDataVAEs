@@ -48,3 +48,80 @@ INFO:root:Test set evaluation: {'loss': 61.550545, 'global_step': 14504, 'imputa
 INFO:root:Test set evaluation: {'loss': 60.795635, 'global_step': 9604, 'imputation_mse': 9.202208, 'mse_x': 4.1536064, 'elbo': -60.795635, 'kl': 18.492147, 'log_prob_x': -42.30349, 'imputation_log_prob': -49.289394}
 INFO:root:Test set evaluation: {'loss': 61.04241, 'global_step': 13720, 'imputation_mse': 8.944256, 'mse_x': 4.0300064, 'elbo': -61.04241, 'kl': 19.148338, 'log_prob_x': -41.89406, 'imputation_log_prob': -47.525234}
 
+
+INFO:root:Test set evaluation: {'loss': 62.293396, 'global_step': 11368, 'imputation_mse': 10.461126, 'mse_x': 4.4514136, 'elbo': -62.293396, 'kl': 18.92059, 'log_prob_x': -43.37281, 'imputation_log_prob': -55.52221}
+INFO:root:Test set evaluation: {'loss': 61.89505, 'global_step': 13916, 'imputation_mse': 9.796587, 'mse_x': 4.4255586, 'elbo': -61.89505, 'kl': 18.44634, 'log_prob_x': -43.44871, 'imputation_log_prob': -50.023853}
+INFO:root:Test set evaluation: {'loss': 60.988228, 'global_step': 14504, 'imputation_mse': 8.924383, 'mse_x': 4.1083074, 'elbo': -60.988228, 'kl': 18.764889, 'log_prob_x': -42.223335, 'imputation_log_prob': -48.105568}
+INFO:root:Test set evaluation: {'loss': 61.507233, 'global_step': 15484, 'imputation_mse': 9.276182, 'mse_x': 4.073079, 'elbo': -61.507233, 'kl': 19.404099, 'log_prob_x': -42.10313, 'imputation_log_prob': -48.651146}
+
+
+INFO:root:Test set evaluation: {'loss': 62.45048, 'global_step': 9996, 'imputation_mse': 10.737901, 'mse_x': 4.464747, 'elbo': -62.45048, 'kl': 19.248297, 'log_prob_x': -43.202187, 'imputation_log_prob': -56.441326}
+INFO:root:Test set evaluation: {'loss': 61.44684, 'global_step': 14112, 'imputation_mse': 9.410856, 'mse_x': 4.2184186, 'elbo': -61.44684, 'kl': 18.95432, 'log_prob_x': -42.492508, 'imputation_log_prob': -49.317337}
+INFO:root:Test set evaluation: {'loss': 60.212517, 'global_step': 15680, 'imputation_mse': 9.168367, 'mse_x': 4.220951, 'elbo': -60.212517, 'kl': 17.921576, 'log_prob_x': -42.290947, 'imputation_log_prob': -49.234283}
+INFO:root:Test set evaluation: {'loss': 60.578606, 'global_step': 9408, 'imputation_mse': 9.251054, 'mse_x': 4.0691996, 'elbo': -60.578606, 'kl': 18.635384, 'log_prob_x': -41.943222, 'imputation_log_prob': -48.47223}
+
+
+I0801 21:03:50.743309 140199089932032 conv_net.py:757] Test set evaluation: {'loss': 62.08376, 'global_step': 7840, 'imputation_mse': 10.640403, 'mse_x': 4.571012, 'elbo': -62.08376, 'kl': 18.37378, 'log_prob_x': -43.70998, 'imputation_log_prob': -56.20829}
+I0801 23:16:15.977240 140199089932032 conv_net.py:757] Test set evaluation: {'loss': 61.19868, 'global_step': 16072, 'imputation_mse': 9.541795, 'mse_x': 4.28943, 'elbo': -61.19868, 'kl': 18.284565, 'log_prob_x': -42.914112, 'imputation_log_prob': -49.807003}
+I0802 01:04:19.403928 140199089932032 conv_net.py:757] Test set evaluation: {'loss': 60.927437, 'global_step': 12544, 'imputation_mse': 9.035131, 'mse_x': 4.1850305, 'elbo': -60.927437, 'kl': 18.440624, 'log_prob_x': -42.48681, 'imputation_log_prob': -48.063694}
+I0802 03:43:14.835129 140199089932032 conv_net.py:757] Test set evaluation: {'loss': 60.88094, 'global_step': 18620, 'imputation_mse': 9.094326, 'mse_x': 4.1506166, 'elbo': -60.88094, 'kl': 18.566965, 'log_prob_x': -42.313972, 'imputation_log_prob': -47.684536}
+
+
+INFO:root:Test set evaluation: {'loss': 62.514496, 'global_step': 9800, 'imputation_mse': 10.521347, 'mse_x': 4.595179, 'elbo': -62.514496, 'kl': 18.657059, 'log_prob_x': -43.857445, 'imputation_log_prob': -55.65078}
+INFO:root:Test set evaluation: {'loss': 61.671288, 'global_step': 15484, 'imputation_mse': 9.424801, 'mse_x': 4.36375, 'elbo': -61.671288, 'kl': 18.41901, 'log_prob_x': -43.252274, 'imputation_log_prob': -49.313694}
+INFO:root:Test set evaluation: {'loss': 62.226494, 'global_step': 7448, 'imputation_mse': 9.2062235, 'mse_x': 4.3490515, 'elbo': -62.226494, 'kl': 19.139011, 'log_prob_x': -43.08748, 'imputation_log_prob': -48.594543}
+INFO:root:Test set evaluation: {'loss': 61.641182, 'global_step': 7840, 'imputation_mse': 9.208773, 'mse_x': 4.182534, 'elbo': -61.641182, 'kl': 19.03812, 'log_prob_x': -42.60305, 'imputation_log_prob': -48.107742}
+
+
+I0802 11:09:40.890773 139967051732736 conv_net.py:757] Test set evaluation: {'loss': 62.49057, 'global_step': 16268, 'imputation_mse': 10.359049, 'mse_x': 4.5656734, 'elbo': -62.49057, 'kl': 18.923641, 'log_prob_x': -43.56693, 'imputation_log_prob': -56.232983}
+I0802 12:54:28.111176 139967051732736 conv_net.py:757] Test set evaluation: {'loss': 61.21391, 'global_step': 12348, 'imputation_mse': 9.714209, 'mse_x': 4.3379817, 'elbo': -61.21391, 'kl': 18.125435, 'log_prob_x': -43.088463, 'imputation_log_prob': -50.60888}
+I0802 14:26:57.282413 139967051732736 conv_net.py:757] Test set evaluation: {'loss': 60.103912, 'global_step': 10584, 'imputation_mse': 9.141362, 'mse_x': 4.14334, 'elbo': -60.103912, 'kl': 17.803116, 'log_prob_x': -42.300793, 'imputation_log_prob': -49.161533}
+I0802 16:15:02.913280 139967051732736 conv_net.py:757] Test set evaluation: {'loss': 60.510082, 'global_step': 11956, 'imputation_mse': 9.299448, 'mse_x': 4.0615005, 'elbo': -60.510082, 'kl': 18.425623, 'log_prob_x': -42.08445, 'imputation_log_prob': -49.10259}
+
+
+I0802 11:25:39.342323 139760715286272 conv_net.py:757] Test set evaluation: {'loss': 62.258312, 'global_step': 18032, 'imputation_mse': 10.374723, 'mse_x': 4.4747458, 'elbo': -62.258312, 'kl': 18.95271, 'log_prob_x': -43.3056, 'imputation_log_prob': -55.85559}
+I0802 13:37:42.971112 139760715286272 conv_net.py:757] Test set evaluation: {'loss': 61.041492, 'global_step': 15484, 'imputation_mse': 9.539208, 'mse_x': 4.276147, 'elbo': -61.041492, 'kl': 18.14312, 'log_prob_x': -42.898373, 'imputation_log_prob': -49.893345}
+I0802 14:57:06.380023 139760715286272 conv_net.py:757] Test set evaluation: {'loss': 61.370094, 'global_step': 8428, 'imputation_mse': 9.103557, 'mse_x': 4.1419625, 'elbo': -61.370094, 'kl': 19.098274, 'log_prob_x': -42.271824, 'imputation_log_prob': -48.104347}
+I0802 16:43:30.118145 139760715286272 conv_net.py:757] Test set evaluation: {'loss': 60.59193, 'global_step': 11172, 'imputation_mse': 9.037746, 'mse_x': 4.107424, 'elbo': -60.59193, 'kl': 18.332073, 'log_prob_x': -42.259846, 'imputation_log_prob': -47.465652}
+
+
+I0802 10:33:13.332297 139658711041792 conv_net.py:757] Test set evaluation: {'loss': 62.1763, 'global_step': 11172, 'imputation_mse': 10.106483, 'mse_x': 4.5037794, 'elbo': -62.1763, 'kl': 18.638756, 'log_prob_x': -43.537544, 'imputation_log_prob': -53.75996}
+I0802 12:42:41.354281 139658711041792 conv_net.py:757] Test set evaluation: {'loss': 61.540657, 'global_step': 15876, 'imputation_mse': 9.541589, 'mse_x': 4.369167, 'elbo': -61.540657, 'kl': 18.403818, 'log_prob_x': -43.136845, 'imputation_log_prob': -50.041195}
+I0802 14:26:53.201309 139658711041792 conv_net.py:757] Test set evaluation: {'loss': 60.867653, 'global_step': 12152, 'imputation_mse': 9.073404, 'mse_x': 4.1287565, 'elbo': -60.867653, 'kl': 18.601795, 'log_prob_x': -42.265865, 'imputation_log_prob': -48.88796}
+I0802 17:02:42.838453 139658711041792 conv_net.py:757] Test set evaluation: {'loss': 60.59725, 'global_step': 18032, 'imputation_mse': 8.863851, 'mse_x': 4.0728436, 'elbo': -60.59725, 'kl': 18.475468, 'log_prob_x': -42.121788, 'imputation_log_prob': -47.549213}
+
+
+I0802 12:59:49.745652 139951071024896 conv_net.py:757] Test set evaluation: {'loss': 62.532524, 'global_step': 19796, 'imputation_mse': 10.120742, 'mse_x': 4.4155765, 'elbo': -62.532524, 'kl': 19.464397, 'log_prob_x': -43.06814, 'imputation_log_prob': -54.43269}
+I0802 14:05:22.385787 139951071024896 conv_net.py:757] Test set evaluation: {'loss': 62.31933, 'global_step': 6860, 'imputation_mse': 9.654378, 'mse_x': 4.340041, 'elbo': -62.31933, 'kl': 19.132666, 'log_prob_x': -43.186665, 'imputation_log_prob': -49.61196}
+I0802 16:13:02.451872 139951071024896 conv_net.py:757] Test set evaluation: {'loss': 61.1341, 'global_step': 15484, 'imputation_mse': 9.297459, 'mse_x': 4.251202, 'elbo': -61.1341, 'kl': 18.493328, 'log_prob_x': -42.640778, 'imputation_log_prob': -49.085136}
+I0802 17:55:20.258385 139951071024896 conv_net.py:757] Test set evaluation: {'loss': 60.997395, 'global_step': 11172, 'imputation_mse': 9.25856, 'mse_x': 4.102488, 'elbo': -60.997395, 'kl': 18.86084, 'log_prob_x': -42.136547, 'imputation_log_prob': -48.49099}
+
+
+INFO:root:Test set evaluation: {'loss': 62.278126, 'global_step': 11368, 'imputation_mse': 10.218931, 'mse_x': 4.427464, 'elbo': -62.278126, 'kl': 18.885637, 'log_prob_x': -43.39248, 'imputation_log_prob': -54.24317}
+INFO:root:Test set evaluation: {'loss': 64.37192, 'global_step': 18620, 'imputation_mse': 10.255392, 'mse_x': 5.0082893, 'elbo': -64.37192, 'kl': 19.059647, 'log_prob_x': -45.312263, 'imputation_log_prob': -50.288887}
+INFO:root:Test set evaluation: {'loss': 60.817333, 'global_step': 10976, 'imputation_mse': 9.21077, 'mse_x': 4.226393, 'elbo': -60.817333, 'kl': 18.186268, 'log_prob_x': -42.631065, 'imputation_log_prob': -49.4967}
+INFO:root:Test set evaluation: {'loss': 60.832947, 'global_step': 14896, 'imputation_mse': 8.886358, 'mse_x': 4.029729, 'elbo': -60.832947, 'kl': 18.834927, 'log_prob_x': -41.998013, 'imputation_log_prob': -46.70736}
+
+
+INFO:root:Test set evaluation: {'loss': 62.711525, 'global_step': 12152, 'imputation_mse': 10.145431, 'mse_x': 4.513976, 'elbo': -62.711525, 'kl': 18.98756, 'log_prob_x': -43.72396, 'imputation_log_prob': -53.822}
+INFO:root:Test set evaluation: {'loss': 61.75991, 'global_step': 12740, 'imputation_mse': 9.476889, 'mse_x': 4.3675895, 'elbo': -61.75991, 'kl': 18.512486, 'log_prob_x': -43.247425, 'imputation_log_prob': -49.48445}
+INFO:root:Test set evaluation: {'loss': 60.9009, 'global_step': 6664, 'imputation_mse': 9.148893, 'mse_x': 4.2671533, 'elbo': -60.9009, 'kl': 17.995434, 'log_prob_x': -42.90548, 'imputation_log_prob': -48.505356}
+INFO:root:Test set evaluation: {'loss': 61.807903, 'global_step': 16464, 'imputation_mse': 9.161166, 'mse_x': 4.1515765, 'elbo': -61.807903, 'kl': 19.384619, 'log_prob_x': -42.423283, 'imputation_log_prob': -47.992027}
+
+
+INFO:root:Test set evaluation: {'loss': 63.105175, 'global_step': 10780, 'imputation_mse': 10.431648, 'mse_x': 4.487464, 'elbo': -63.105175, 'kl': 19.473707, 'log_prob_x': -43.631462, 'imputation_log_prob': -54.483795}
+INFO:root:Test set evaluation: {'loss': 61.986885, 'global_step': 10388, 'imputation_mse': 9.35271, 'mse_x': 4.3664527, 'elbo': -61.986885, 'kl': 18.55476, 'log_prob_x': -43.432133, 'imputation_log_prob': -48.814194}
+INFO:root:Test set evaluation: {'loss': 61.225384, 'global_step': 11760, 'imputation_mse': 8.956907, 'mse_x': 4.2467647, 'elbo': -61.225384, 'kl': 18.381895, 'log_prob_x': -42.84349, 'imputation_log_prob': -47.926918}
+INFO:root:Test set evaluation: {'loss': 61.914436, 'global_step': 9996, 'imputation_mse': 8.907702, 'mse_x': 4.1436353, 'elbo': -61.914436, 'kl': 19.32873, 'log_prob_x': -42.5857, 'imputation_log_prob': -47.13206}
+
+INFO:root:Test set evaluation: {'loss': 62.480225, 'global_step': 19796, 'imputation_mse': 9.967865, 'mse_x': 4.5065546, 'elbo': -62.480225, 'kl': 18.832943, 'log_prob_x': -43.647285, 'imputation_log_prob': -54.326874}
+INFO:root:Test set evaluation: {'loss': 61.447754, 'global_step': 24304, 'imputation_mse': 9.0952835, 'mse_x': 4.2131844, 'elbo': -61.447754, 'kl': 18.618263, 'log_prob_x': -42.829494, 'imputation_log_prob': -48.29512}
+INFO:root:Test set evaluation: {'loss': 61.23551, 'global_step': 9996, 'imputation_mse': 8.736733, 'mse_x': 4.1905546, 'elbo': -61.23551, 'kl': 18.595917, 'log_prob_x': -42.6396, 'imputation_log_prob': -47.042145}
+INFO:root:Test set evaluation: {'loss': 62.09902, 'global_step': 12544, 'imputation_mse': 9.102646, 'mse_x': 4.1653695, 'elbo': -62.09902, 'kl': 19.41392, 'log_prob_x': -42.685112, 'imputation_log_prob': -47.748325}
+
+
+INFO:root:Test set evaluation: {'loss': 63.819954, 'global_step': 16464, 'imputation_mse': 12.469522, 'mse_x': 4.892526, 'elbo': -63.819954, 'kl': 19.00523, 'log_prob_x': -44.81473, 'imputation_log_prob': -63.23415}
+INFO:root:Test set evaluation: {'loss': 61.91629, 'global_step': 13328, 'imputation_mse': 9.491732, 'mse_x': 4.3638897, 'elbo': -61.91629, 'kl': 18.645765, 'log_prob_x': -43.270515, 'imputation_log_prob': -49.658165}
+INFO:root:Test set evaluation: {'loss': 61.012978, 'global_step': 12936, 'imputation_mse': 8.840797, 'mse_x': 4.162837, 'elbo': -61.012978, 'kl': 18.583834, 'log_prob_x': -42.42915, 'imputation_log_prob': -47.805626}
+INFO:root:Test set evaluation: {'loss': 60.572517, 'global_step': 10192, 'imputation_mse': 9.193291, 'mse_x': 4.174869, 'elbo': -60.572517, 'kl': 17.98092, 'log_prob_x': -42.591606, 'imputation_log_prob': -47.55282}
+
