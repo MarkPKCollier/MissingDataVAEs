@@ -126,13 +126,13 @@ elif args.dataset == 'cifar10':
 
     z_dim = 200
     input_units = x_train.shape[1] * x_train.shape[2]
-    encoder_layers = [(60, 3, 2), (80, 3, 2), (80, 5, 2)]
-    encoder_shapes = [(32, 32, 3), (16, 16, 60), (8, 8, 80), (4, 4, 80)]
+    encoder_layers = [(40, 3, 2), (60, 3, 2), (60, 5, 2)]
+    encoder_shapes = [(32, 32, 3), (16, 16, 40), (8, 8, 60), (4, 4, 60)]
     encoder_shapes_pre_pool = encoder_shapes
-    p_x_layers = [4*4*80,
-                  ([-1, 4, 4, 80], 80, 3, 2, tf.nn.relu),
-                  (None, 80, 3, 2, tf.nn.relu),
-                  (None, 60, 5, 2, tf.nn.relu)]
+    p_x_layers = [4*4*60,
+                  ([-1, 4, 4, 60], 60, 3, 2, tf.nn.relu),
+                  (None, 60, 3, 2, tf.nn.relu),
+                  (None, 40, 5, 2, tf.nn.relu)]
     p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
                       (None, 30, 5, 1, tf.nn.relu),
                       (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
