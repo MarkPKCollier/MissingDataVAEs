@@ -1,5 +1,6 @@
 import argparse
 import logging
+import pickle
 import shutil
 
 import chainer
@@ -578,53 +579,12 @@ for model_type, title in [('VAE', 'Zero imputation'),
         x_valid_input = b_valid * x_valid
         x_test_input = b_test * x_test
 
-    if args.save_imgs and 'mnist' in args.dataset:
-        def draw_digit(data, row, col, n):
-            size = 28
-            plt.subplot(row, col, n)
-            plt.imshow(data)
-            plt.gray()
-            plt.axis('off')
-
+    if args.save_imgs:
         show_size = 10
-        total = 0
-        fig = plt.figure(figsize=(20,20), dpi=30)
-        for i in range(show_size):
-            for j in range(show_size):
-                if i % 2 == 0:
-                    draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
-                else:
-                    draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
-
-                total += 1
-        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-        plt.savefig('{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
-                                                 args.missingness_complexity),
-                    bbox_inches='tight')
-        plt.close()
-    elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-        def draw_digit(data, row, col, n):
-            size = 32
-            plt.subplot(row, col, n)
-            plt.imshow(data)
-            plt.axis('off')
-
-        show_size = 10
-        total = 0
-        fig = plt.figure(figsize=(20,20), dpi=30)
-        for i in range(show_size):
-            for j in range(show_size):
-                if i % 2 == 0:
-                    draw_digit(x_train[(i/2)*show_size + j], show_size, show_size, total+1)
-                else:
-                    draw_digit(x_train_input[((i - 1)/2)*show_size + j], show_size, show_size, total+1)
-
-                total += 1
-        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-        plt.savefig('{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
-                                                 args.missingness_complexity),
-                    bbox_inches='tight')
-        plt.close()
+        pickle.dump(x_train[:show_size**2], open('{0}_{1}_{2}_{3}_x_train.p'.format(
+            args.dataset, model_type, args.missingness_type, args.missingness_complexity), 'wb'))
+        pickle.dump(x_train_input[:show_size**2], open('{0}_{1}_{2}_{3}_x_train_input.p'.format(
+            args.dataset, model_type, args.missingness_type, args.missingness_complexity), 'wb'))
 
     feature_columns = [tf.feature_column.numeric_column(key='x', shape=[img_dim, img_dim]),
                        tf.feature_column.numeric_column(key='x_input', shape=[img_dim, img_dim]),
@@ -682,64 +642,6 @@ for model_type, title in [('VAE', 'Zero imputation'),
         eval_result = vae.evaluate(input_fn=valid_input_fn)
         logging.info('End of epoch evaluation (valid set): ' + str(eval_result))
 
-        if args.save_imgs and 'mnist' in args.dataset:
-            recons = vae.predict(image_plot_input_fn)
-            images = [res['x'] for res in recons]
-
-            def draw_digit(data, row, col, n):
-                size = 28
-                plt.subplot(row, col, n)
-                plt.imshow(data)
-                plt.gray()
-                plt.axis('off')
-
-            show_size = 9
-            total = 0
-            fig = plt.figure(figsize=(20,20), dpi=30)
-            for i in range(show_size):
-                for j in range(show_size):
-                    if i % 3 == 0:
-                        draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                    elif i % 3 == 1:
-                        draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                    else:
-                        draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                    total += 1
-            fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type, 
-                                                           args.missingness_complexity),
-                        bbox_inches='tight')
-            plt.close()
-        elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-            recons = vae.predict(image_plot_input_fn)
-            images = [res['x'] for res in recons]
-            
-            def draw_digit(data, row, col, n):
-                size = 32
-                plt.subplot(row, col, n)
-                plt.imshow(data)
-                plt.axis('off')
-
-            show_size = 9
-            total = 0
-            fig = plt.figure(figsize=(20,20), dpi=30)
-            for i in range(show_size):
-                for j in range(show_size):
-                    if i % 3 == 0:
-                        draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                    elif i % 3 == 1:
-                        draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                    else:
-                        draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                    total += 1
-            fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-            plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
-                                                           args.missingness_complexity),
-                        bbox_inches='tight')
-            plt.close()
-
         if best_valid_eval is None or eval_result['log_prob_x'] > best_valid_eval:
             best_checkpoint = vae.latest_checkpoint()
             best_valid_eval = eval_result['log_prob_x']
@@ -756,62 +658,15 @@ for model_type, title in [('VAE', 'Zero imputation'),
         checkpoint_path=best_checkpoint)
     logging.info('Test set evaluation: {0}'.format(eval_result))
 
-    if args.save_imgs and 'mnist' in args.dataset:
-        recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
-        images = [res['x'] for res in recons]
-
-        def draw_digit(data, row, col, n):
-            size = 28
-            plt.subplot(row, col, n)
-            plt.imshow(data)
-            plt.gray()
-            plt.axis('off')
-
+    if args.save_imgs:
         show_size = 9
-        total = 0
-        fig = plt.figure(figsize=(20, 20), dpi=30)
-        for i in range(show_size):
-            for j in range(show_size):
-                if i % 3 == 0:
-                    draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                elif i % 3 == 1:
-                    draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                else:
-                    draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                total += 1
-        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-        plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
-                                                       args.missingness_complexity),
-                    bbox_inches='tight')
-        plt.close()
-    elif args.save_imgs and args.dataset in ('cifar10', 'svhn'):
-        recons = vae.predict(image_plot_input_fn, checkpoint_path=best_checkpoint)
+        recons = vae.predict(image_plot_input_fn)
         images = [res['x'] for res in recons]
-        
-        def draw_digit(data, row, col, n):
-            size = 32
-            plt.subplot(row, col, n)
-            plt.imshow(data)
-            plt.axis('off')
-
-        show_size = 9
-        total = 0
-        fig = plt.figure(figsize=(20, 20), dpi=30)
-        for i in range(show_size):
-            for j in range(show_size):
-                if i % 3 == 0:
-                    draw_digit(x_test[(i/3)*show_size + j], show_size, show_size, total+1)
-                elif i % 3 == 1:
-                    draw_digit(x_test_input[((i - 1)/3)*show_size + j], show_size, show_size, total+1)
-                else:
-                    draw_digit(images[((i - 2)/3)*show_size + j], show_size, show_size, total+1)
-
-                total += 1
-        fig.suptitle(title, fontsize=35, verticalalignment='center', y=0.92)
-        plt.savefig('recon_{0}_{1}_{2}_{3}.png'.format(args.dataset, model_type, args.missingness_type,
-                                                       args.missingness_complexity),
-                    bbox_inches='tight')
-        plt.close()
+        pickle.dump(x_test[:show_size**2], open('{0}_{1}_{2}_{3}_x_test.p'.format(
+            args.dataset, model_type, args.missingness_type, args.missingness_complexity), 'wb'))
+        pickle.dump(x_test_input[:show_size**2], open('{0}_{1}_{2}_{3}_x_test_input.p'.format(
+            args.dataset, model_type, args.missingness_type, args.missingness_complexity), 'wb'))
+        pickle.dump(images[:show_size**2], open('{0}_{1}_{2}_{3}_images.p'.format(
+            args.dataset, model_type, args.missingness_type, args.missingness_complexity), 'wb'))
 
     shutil.rmtree(model_dir, ignore_errors=True)
