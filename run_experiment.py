@@ -20,7 +20,7 @@ def str2bool(v):
 
 parser.add_argument('--run_id', type=int, default=1)
 parser.add_argument('--dataset', type=str, default='mnist',
-                    help='binary_minst | mnist | cifar10 | svhn')
+                    help='binary_minst | mnist | svhn')
 parser.add_argument('--missingness_type', type=str, default='independent',
                     help='independent (MCAR) | dependent (MNAR)')
 parser.add_argument('--missingness_complexity', type=str, default='simple',
@@ -111,33 +111,6 @@ elif 'svhn' in args.dataset:
                       (None, 30, 5, 1, tf.nn.relu),
                       (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
                       else (None, 3, 3, 1, None)]
-elif args.dataset == 'cifar10':
-    img_channels = 3
-    data = tf.keras.datasets.cifar10
-
-    (x_train, y_train), (x_test, y_test) = data.load_data()
-    y_train, y_test = y_train.astype(np.int32), y_test.astype(np.int32)
-
-    x_train = x_train/255.0
-    x_test = x_test/255.0
-
-    x_train, x_valid, y_train, y_valid = train_test_split(x_train, y_train,
-                                                          train_size=40000,
-                                                          test_size=10000)
-
-    z_dim = 200
-    input_units = x_train.shape[1] * x_train.shape[2]
-    encoder_layers = [(40, 3, 2), (60, 3, 2), (60, 5, 2)]
-    encoder_shapes = [(32, 32, 3), (16, 16, 40), (8, 8, 60), (4, 4, 60)]
-    encoder_shapes_pre_pool = encoder_shapes
-    p_x_layers = [4*4*60,
-                  ([-1, 4, 4, 60], 60, 3, 2, tf.nn.relu),
-                  (None, 60, 3, 2, tf.nn.relu),
-                  (None, 40, 5, 2, tf.nn.relu)]
-    p_x_b_z_layers = [(None, 30, 5, 1, tf.nn.relu),
-                      (None, 30, 5, 1, tf.nn.relu),
-                      (None, 9 * args.k, 3, 1, None) if args.likelihood == 'logistic_mixture'
-                      else (None, 3, 3, 1, None)]
 
 max_epochs = 400
 max_epochs_without_improvement = 12
@@ -146,8 +119,6 @@ missingness_block_size = 7
 if 'mnist' in args.dataset:
     num_missing_blocks = 8
 elif args.dataset == 'svhn':
-    num_missing_blocks = 9
-elif args.dataset == 'cifar10':
     num_missing_blocks = 9
 
 def encoder(inputs, model_type=None):
@@ -160,7 +131,7 @@ def encoder(inputs, model_type=None):
             if i == 0:
                 if 'mnist' in args.dataset:
                     in_channels = 1
-                elif args.dataset == 'cifar10' or args.dataset == 'svhn':
+                elif args.dataset == 'svhn':
                     in_channels = 3
                 
                 if '_ind' in model_type:
@@ -215,7 +186,7 @@ def decoder(z, b=None):
             net = tf.contrib.layers.fully_connected(net, layer, activation_fn=tf.nn.relu)
 
     if b is not None:
-        if args.dataset in ('svhn', 'cifar10'):
+        if args.dataset == 'svhn':
             b = b[:, :, :, 0]
         b = tf.expand_dims(b, axis=3)
         net = tf.concat([net, b], axis=3)
@@ -292,7 +263,7 @@ def model(features, labels, mode, params):
                              if '_ind' in params['model_type']
                              else tf.expand_dims(x_input, -1),
                              model_type=params['model_type'])
-    elif args.dataset == 'cifar10' or args.dataset == 'svhn':
+    elif args.dataset == 'svhn':
         x = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][0]),
                        [-1, img_dim, img_dim, 3])
         x_input = tf.reshape(tf.feature_column.input_layer(features, params['feature_columns'][1]),
@@ -455,7 +426,7 @@ if args.missingness_type == 'independent' and args.missingness_complexity == 'si
                 b_train[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_train[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
@@ -468,7 +439,7 @@ if args.missingness_type == 'independent' and args.missingness_complexity == 'si
                 b_valid[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_valid[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
@@ -481,7 +452,7 @@ if args.missingness_type == 'independent' and args.missingness_complexity == 'si
                 b_test[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_test[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
@@ -513,7 +484,7 @@ elif args.missingness_type == 'dependent' or args.missingness_complexity == 'com
                 b_train[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_train[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
@@ -531,7 +502,7 @@ elif args.missingness_type == 'dependent' or args.missingness_complexity == 'com
                 b_valid[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_valid[b,
                         max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                         max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
@@ -549,7 +520,7 @@ elif args.missingness_type == 'dependent' or args.missingness_complexity == 'com
                 b_test[b,
                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim)] = 0.0
-            elif args.dataset in ('cifar10', 'svhn'):
+            elif args.dataset == 'svhn':
                 b_test[b,
                        max(x - missingness_block_size/2, 0):min(x + missingness_block_size/2, img_dim),
                        max(y - missingness_block_size/2, 0):min(y + missingness_block_size/2, img_dim),
